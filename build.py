@@ -46,7 +46,10 @@ import urllib.request
 # 默认复用 App 推送更新密钥，使 blob 可被现有 Rc4Util.decrypt() 直接解开（前端零改动）。
 DEFAULT_RC4_KEY = "JUYING_APP_UPDATE_2026$Rc4#v1Key!"
 # 可通过环境变量覆盖（用户后续提供的专用密钥在此注入）
-RC4_KEY = os.environ.get("RC4_KEY", DEFAULT_RC4_KEY)
+# 注意：os.environ.get 在「变量存在但为空串」时返回 "" 而非 fallback，
+# 空串会导致 rc4() 里 len(key)=0 → ZeroDivisionError。故用 `or` 兜底到默认密钥
+#（默认密钥与 App 端 Rc4Util.KEY 完全一致，保证 blob 可被 App 解密）。
+RC4_KEY = (os.environ.get("RC4_KEY") or "").strip() or DEFAULT_RC4_KEY
 
 # to4kacc 转换后的 TVBox 多仓配置，托管在仓库 generated/ 目录，由 CDN 分发。
 # App 端订阅仓库点「添加」时会把该 URL 写进 SOURCE_SUBSCRIPTIONS（name###url）。
