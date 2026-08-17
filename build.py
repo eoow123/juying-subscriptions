@@ -22,7 +22,11 @@
   - type 字段：
       config  影视仓/TVBox 配置 JSON 地址（可直接加入 SOURCE_SUBSCRIPTIONS）
       live    影视仓/TVBox 直播源 TXT 地址（可加入直播订阅）
-      spider  裸采集站 api（前端可包成单站配置后加入；不含成人站）
+
+  说明：to4kacc 上游给的是 OmniBox 格式（站点 type=2 指向内置 spider），
+  TVBox 无法直接消费。因此 build.py 会在构建时把其站点「去成人 + 转成
+  TVBox 资源网直连配置（type 置空、直接用 api）」，落地为仓库 generated/
+  目录下的单个 JSON，并以一个 config 条目发布，App 订阅后即获得整仓站点。
 """
 
 import argparse
@@ -43,6 +47,15 @@ import urllib.request
 DEFAULT_RC4_KEY = "JUYING_APP_UPDATE_2026$Rc4#v1Key!"
 # 可通过环境变量覆盖（用户后续提供的专用密钥在此注入）
 RC4_KEY = os.environ.get("RC4_KEY", DEFAULT_RC4_KEY)
+
+# to4kacc 转换后的 TVBox 多仓配置，托管在仓库 generated/ 目录，由 CDN 分发。
+# App 端订阅仓库点「添加」时会把该 URL 写进 SOURCE_SUBSCRIPTIONS（name###url）。
+TO4KACC_CONFIG_URL = (
+    "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/"
+    "generated/to4kacc-config.json"
+)
+# 仓库根目录下的 generated/ 文件夹（存放由 to4kacc 转换出的 TVBox 配置）
+GENERATED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated")
 
 # 抓取 UA：用 okhttp 系 UA，规避部分上游对「浏览器 UA」返回 HTML 的反爬（摸鱼儿/王二小/饭太硬等）。
 FETCH_UA = (
@@ -169,23 +182,52 @@ def parse_single_config(source: dict, text: str):
     return [{"name": name, "url": url, "type": "config"}]
 
 
-def parse_omni_sites(source: dict, text: str):
-    """to4kacc 产出 OmniBox 站点列表：sites[] 每项 {name/key, api, tags}。
-    展开为 spider 条目，过滤成人站。"""
-    data = json.loads(text)
-    out = []
+def make_to4kacc_config(text: str, out_dir: str):
+    """to4kacc 上游是 OmniBox 格式（sites[] 每项含 api + type=2 内置 spider）。
+    TVBox 无法直接消费 type=2，因此这里把每个非成人站点转成 TVBox 可直接
+    调用的「资源网直连」站点（type 置空、直接用 api），汇总为一个 TVBox 配置，
+    写入 out_dir/to4kacc-config.json。返回 (单个 config 条目, 内部站点数)，
+    失败/无有效站点时返回 (None, 0)。"""
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return None, 0
+    out_sites = []
     for site in data.get("sites", []):
         tags = site.get("tags", []) or []
         if any("成人" in str(t) for t in tags):
             continue
         if "🔞" in (site.get("key", "") + site.get("name", "")):
             continue
-        name = _clean_name(site.get("name") or site.get("key", ""))
-        url = normalize_url(site.get("api", ""))
-        if not name or not url:
+        api = normalize_url(site.get("api", ""))
+        if not api:
             continue
-        out.append({"name": name, "url": url, "type": "spider"})
-    return out
+        name = _clean_name(site.get("name") or site.get("key", ""))
+        if not name:
+            continue
+        out_sites.append({
+            "key": site.get("id") or name,
+            "name": name,
+            "api": api,
+            "type": "",
+        })
+    if not out_sites:
+        return None, 0
+    cfg = {"spider": "", "sites": out_sites, "pass": True}
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, "to4kacc-config.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception as e:  # noqa: BLE001
+        print(f"  [WARN] write to4kacc config failed: {e}", file=sys.stderr)
+        return None, 0
+    entry = {
+        "name": f"to4kacc 多仓（{len(out_sites)} 站·资源网直连）",
+        "url": TO4KACC_CONFIG_URL,
+        "type": "config",
+    }
+    return entry, len(out_sites)
 
 
 def parse_static_list(source: dict, text: str):
@@ -204,7 +246,6 @@ PARSERS = {
     "awesome_resources": parse_awesome_resources,
     "single_live": parse_single_live,
     "single_config": parse_single_config,
-    "omni_sites": parse_omni_sites,
     "static_list": parse_static_list,
 }
 
@@ -233,8 +274,8 @@ SOURCES = [
     },
     {
         "id": "to4kacc",
+        "name": "to4kacc 多仓（资源网直连）",
         "url": "https://raw.githubusercontent.com/to4kacc/LunaTV-config-to-OmniBox-config/main/converted_data.json",
-        "parser": "omni_sites",
     },
     {
         "id": "jinenge",
@@ -270,6 +311,21 @@ def build() -> dict:
         sid = src["id"]
         try:
             text = fetch_text(src["url"]) if src.get("url") else ""
+        except Exception as e:  # noqa: BLE001
+            print(f"  [WARN] source '{sid}' fetch failed: {e}", file=sys.stderr)
+            text = ""
+        # to4kacc 不走通用 parser，而是转成 TVBox 多仓配置后产出单个 config 条目
+        if sid == "to4kacc":
+            try:
+                entry, n_sites = make_to4kacc_config(text, GENERATED_DIR)
+            except Exception as e:  # noqa: BLE001
+                print(f"  [WARN] source 'to4kacc' failed: {e}", file=sys.stderr)
+                entry, n_sites = None, 0
+            per_source[sid] = n_sites
+            if entry:
+                collected.append((sid, entry))
+            continue
+        try:
             entries = PARSERS[src["parser"]](src, text)
         except Exception as e:  # noqa: BLE001
             print(f"  [WARN] source '{sid}' failed: {e}", file=sys.stderr)

@@ -33,7 +33,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dist/repo.b64 dist/repo.json
+          git add dist/repo.b64 dist/repo.json generated
           if git diff --cached --quiet; then
             echo "no changes, skip commit"
           else

@@ -1,0 +1,168 @@
+{
+  "spider": "",
+  "sites": [
+    {
+      "key": "0b9ee1d8-0ea7-4523-975b-7777855e6c22",
+      "name": "爱奇艺",
+      "api": "https://iqiyizyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "bae9a2ec-71fb-4d77-9f83-1bb62231f53f",
+      "name": "茅台资源",
+      "api": "https://caiji.maotaizy.cc/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "0654400a-e8d4-43e7-a6bf-d3a75e9fea35",
+      "name": "卧龙资源",
+      "api": "https://wolongzyw.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "23e42a1b-877a-41c7-af36-80c5647a83e3",
+      "name": "iKun资源",
+      "api": "https://ikunzyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "3253256b-4884-423f-aefb-a44e2ba9ad5f",
+      "name": "电影天堂",
+      "api": "http://caiji.dyttzyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "925dd0e1-7fc0-485d-a3fb-b8afac5356fe",
+      "name": "猫眼资源",
+      "api": "https://api.maoyanapi.top/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "44cfe396-32c1-4837-b0a5-6eede780aefc",
+      "name": "量子资源",
+      "api": "https://cj.lzcaiji.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "952e71e0-96c9-42d3-afa5-a95f0ce4e128",
+      "name": "360 资源",
+      "api": "https://360zyzz.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "344b81fa-c975-4dab-80a7-d340fd41fcba",
+      "name": "极速资源",
+      "api": "https://jszyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "9fd1dc7e-5e9e-4089-87b6-93236b9ad122",
+      "name": "魔都资源",
+      "api": "https://www.mdzyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "2accce9d-6ba9-49df-a03b-2dc14c27151c",
+      "name": "非凡资源",
+      "api": "https://api.ffzyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "57c61036-1d0c-49fb-adae-9e51fc6231a3",
+      "name": "暴风资源",
+      "api": "https://bfzyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "ebc5e79c-5bfa-4b4b-8a55-44fce31a21d2",
+      "name": "最大资源",
+      "api": "https://api.zuidapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "e2a54f33-3c9f-45e1-95ab-9fa57215b51d",
+      "name": "无尽资源",
+      "api": "https://api.wujinapi.me/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "b2b4167b-22ed-4085-8667-4fddd7dd41d0",
+      "name": "新浪资源",
+      "api": "https://api.xinlangapi.com/xinlangapi.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "993f19e4-a51a-457c-a137-5a5e69dda2f0",
+      "name": "旺旺资源",
+      "api": "https://api.wwzy.tv/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "65ca0eec-de39-4345-b67d-caf964639bac",
+      "name": "速播资源",
+      "api": "https://subocaiji.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "f97c31a8-4ecd-45a0-9ddb-1f3dc6168a8a",
+      "name": "金鹰点播",
+      "api": "https://jyzyapi.com/provide/vod/from/jinyingyun/at/json",
+      "type": ""
+    },
+    {
+      "key": "d53beb13-ec35-4043-81f9-309a63f4de74",
+      "name": "飘零资源",
+      "api": "https://p2100.net/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "5bb8d292-45bb-4d56-b120-0fe2df4c776d",
+      "name": "U酷影视",
+      "api": "https://api.ukuapi88.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "9bac97f7-5258-491a-9431-09f1cca36f6e",
+      "name": "光速资源",
+      "api": "https://api.guangsuapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "aa808bbc-f0b3-417c-a087-ed8fa66f1c2f",
+      "name": "红牛资源",
+      "api": "https://www.hongniuzy2.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "92da126d-c517-47d1-b641-df4daf49477e",
+      "name": "魔都动漫",
+      "api": "https://caiji.moduapi.cc/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "4703e90f-f696-402d-a1b4-e99fee52661f",
+      "name": "如意资源",
+      "api": "https://cj.rycjapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "d021ecd1-8091-40fc-b90b-639bf2573a74",
+      "name": "豪华资源",
+      "api": "https://hhzyapi.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "c5da4985-fc5a-4389-ab79-d991462841b9",
+      "name": "百度云zy",
+      "api": "https://pz.v88.qzz.io/?url=https://api.apibdzy.com/api.php/provide/vod",
+      "type": ""
+    },
+    {
+      "key": "9cbe75a6-87c3-4659-ac62-591ee6f1fffb",
+      "name": "艾旦影视",
+      "api": "https://pz.v88.qzz.io/?url=https://lovedan.net/api.php/provide/vod",
+      "type": ""
+    }
+  ],
+  "pass": true
+}
