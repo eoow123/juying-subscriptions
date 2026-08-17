@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>聚影TV · 订阅仓库后端</title>
+  <style>
+    body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #222; line-height: 1.7; }
+    h1 { font-size: 22px; }
+    code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+    a { color: #2b6cb0; }
+    li { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <h1>聚影TV · 订阅仓库后端</h1>
+  <p>本仓库每日自动从多个<strong>实时更新的上游</strong>采集影视仓 / TVBox 配置源、直播源、采集站，
+     清洗去重排序后用 <strong>RC4 + Base64</strong> 加密为 blob，App 端拉取后解密展示名称列表。</p>
+  <ul>
+    <li>加密 blob（App 拉取）：<a href="dist/repo.b64">dist/repo.b64</a></li>
+    <li>明文清单（审计 / 调试）：<a href="dist/repo.json">dist/repo.json</a></li>
+    <li>jsDelivr 镜像：<a href="https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/dist/repo.b64">cdn.jsdelivr.net/gh/eoow123/juying-subscriptions</a></li>
+  </ul>
+  <p>构建详情见 <a href=".github/workflows/build.yml">build.yml</a> 与 <a href="build.py">build.py</a>。</p>
+</body>
+</html>

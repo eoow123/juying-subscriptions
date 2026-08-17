@@ -1,0 +1,247 @@
+{
+  "version": 1,
+  "updated_at": "2026-08-17T09:42:52Z",
+  "count": 48,
+  "items": [
+    {
+      "name": "饭太硬",
+      "url": "http://www.饭太硬.net/tv",
+      "type": "config"
+    },
+    {
+      "name": "肥猫",
+      "url": "http://肥猫.net/",
+      "type": "config"
+    },
+    {
+      "name": "老刘备",
+      "url": "https://raw.liucn.cc/box/m.json",
+      "type": "config"
+    },
+    {
+      "name": "小马",
+      "url": "https://szyyds.cn/tv/x.json",
+      "type": "config"
+    },
+    {
+      "name": "摸鱼儿",
+      "url": "http://摸鱼儿.cc",
+      "type": "config"
+    },
+    {
+      "name": "王二小",
+      "url": "http://new.王二小放牛娃.top",
+      "type": "config"
+    },
+    {
+      "name": "小盒子4K",
+      "url": "http://xhztv.top/4k.json",
+      "type": "config"
+    },
+    {
+      "name": "小盒子单仓",
+      "url": "http://xhztv.top/xhz",
+      "type": "config"
+    },
+    {
+      "name": "VOX",
+      "url": "http://rihou.cc:88/demo.php",
+      "type": "config"
+    },
+    {
+      "name": "嗷呜",
+      "url": "http://itv666.cc/aowu/config.webp",
+      "type": "config"
+    },
+    {
+      "name": "无名",
+      "url": "https://6800.kstore.vip/fish.json",
+      "type": "config"
+    },
+    {
+      "name": "小盒子多仓",
+      "url": "http://xhztv.top/dc",
+      "type": "config"
+    },
+    {
+      "name": "拾光多仓",
+      "url": "http://xmbjm.fh4u.org/dc.txt",
+      "type": "config"
+    },
+    {
+      "name": "挺好分享多仓",
+      "url": "http://ztha.top/TVBox/GYCK.json",
+      "type": "config"
+    },
+    {
+      "name": "小盒子",
+      "url": "https://www.xhztv.pro/",
+      "type": "config"
+    },
+    {
+      "name": "hkbiang/TV 直播源（每日校验）",
+      "url": "https://raw.githubusercontent.com/hkbiang/TV/master/result.txt",
+      "type": "live"
+    },
+    {
+      "name": "sdyby2006/TV 直播源（每 12h 校验）",
+      "url": "https://raw.githubusercontent.com/sdyby2006/TV/master/result.txt",
+      "type": "live"
+    },
+    {
+      "name": "爱奇艺",
+      "url": "https://iqiyizyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "茅台资源",
+      "url": "https://caiji.maotaizy.cc/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "卧龙资源",
+      "url": "https://wolongzyw.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "iKun资源",
+      "url": "https://ikunzyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "电影天堂",
+      "url": "http://caiji.dyttzyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "猫眼资源",
+      "url": "https://api.maoyanapi.top/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "量子资源",
+      "url": "https://cj.lzcaiji.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "360 资源",
+      "url": "https://360zyzz.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "极速资源",
+      "url": "https://jszyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "魔都资源",
+      "url": "https://www.mdzyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "非凡资源",
+      "url": "https://api.ffzyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "暴风资源",
+      "url": "https://bfzyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "最大资源",
+      "url": "https://api.zuidapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "无尽资源",
+      "url": "https://api.wujinapi.me/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "新浪资源",
+      "url": "https://api.xinlangapi.com/xinlangapi.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "旺旺资源",
+      "url": "https://api.wwzy.tv/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "速播资源",
+      "url": "https://subocaiji.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "金鹰点播",
+      "url": "https://jyzyapi.com/provide/vod/from/jinyingyun/at/json",
+      "type": "spider"
+    },
+    {
+      "name": "飘零资源",
+      "url": "https://p2100.net/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "U酷影视",
+      "url": "https://api.ukuapi88.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "光速资源",
+      "url": "https://api.guangsuapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "红牛资源",
+      "url": "https://www.hongniuzy2.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "魔都动漫",
+      "url": "https://caiji.moduapi.cc/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "如意资源",
+      "url": "https://cj.rycjapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "豪华资源",
+      "url": "https://hhzyapi.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "百度云zy",
+      "url": "https://pz.v88.qzz.io/?url=https://api.apibdzy.com/api.php/provide/vod",
+      "type": "spider"
+    },
+    {
+      "name": "jinenge 内置源（自动更新）",
+      "url": "https://raw.githubusercontent.com/jinenge/tvbox/master/tvbox.json",
+      "type": "config"
+    },
+    {
+      "name": "dxawi 0",
+      "url": "https://dxawi.github.io/0/0.json",
+      "type": "config"
+    },
+    {
+      "name": "liu673cn 盒子",
+      "url": "https://liu673cn.github.io/box/m.json",
+      "type": "config"
+    },
+    {
+      "name": "PyramidStore",
+      "url": "https://raw.githubusercontent.com/UndCover/PyramidStore/main/py.json",
+      "type": "config"
+    },
+    {
+      "name": "home.jundie top98",
+      "url": "http://home.jundie.top:81/top98.json",
+      "type": "config"
+    }
+  ]
+}

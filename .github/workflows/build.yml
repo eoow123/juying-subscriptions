@@ -1,0 +1,42 @@
+name: Build Subscription Repo
+
+on:
+  schedule:
+    # UTC 00:30 = 北京时间 08:30，紧跟上游（hkbiang 北京 08:00 / to4kacc 每日 / sdyby2006 每 12h）刷新节奏
+    - cron: "30 0 * * *"
+  workflow_dispatch: {}   # 支持手动触发
+  push:
+    paths:
+      - "build.py"
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: write   # 用于把重建后的 blob 提交回仓库
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build encrypted blob
+        env:
+          RC4_KEY: ${{ secrets.RC4_KEY }}   # 留空则复用 App 端默认密钥（与 Rc4Util.KEY 一致）
+        run: python build.py --out dist
+
+      - name: Commit & push rebuilt blob
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dist/repo.b64 dist/repo.json
+          if git diff --cached --quiet; then
+            echo "no changes, skip commit"
+          else
+            git commit -m "chore: rebuild subscription blob ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git push
+          fi
