@@ -1,8 +1,13 @@
 {
   "version": 1,
-  "updated_at": "2026-08-18T10:08:41Z",
-  "count": 24,
+  "updated_at": "2026-08-18T11:57:33Z",
+  "count": 22,
   "items": [
+    {
+      "name": "国内直播(245台 2026-8-18)",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv_cn_filtered.txt",
+      "type": "live"
+    },
     {
       "name": "饭太硬",
       "url": "http://www.饭太硬.net/tv",
@@ -77,21 +82,6 @@
       "name": "小盒子",
       "url": "https://www.xhztv.pro/",
       "type": "config"
-    },
-    {
-      "name": "hkbiang/TV 直播源（每日校验）（已筛）",
-      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/hkbiang.txt",
-      "type": "live"
-    },
-    {
-      "name": "sdyby2006/TV 直播源（每 12h 校验）（已筛）",
-      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/sdyby2006.txt",
-      "type": "live"
-    },
-    {
-      "name": "iptv-org 国内直播（308 台）",
-      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv-org.txt",
-      "type": "live"
     },
     {
       "name": "to4kacc 多仓（27 站·资源网直连）",
