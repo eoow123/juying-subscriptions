@@ -108,6 +108,11 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
 
     def _fetch_text(url, timeout=FETCH_TIMEOUT, proxy_url=None):
         headers = {"User-Agent": PROBE_UA}
+        # github 系域名带 Bearer 鉴权：避免 Actions 等共享 IP 被 GitHub API 限流
+        # （无 token 也能直连 raw.githubusercontent，只是有 60/h 频率上限；单文件拉取通常无碍）
+        gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
+        if gh_token and ("github.com" in url or "raw.githubusercontent.com" in url or "api.github.com" in url):
+            headers["Authorization"] = f"Bearer {gh_token}"
         req = urllib.request.Request(url, headers=headers)
         handlers = []
         if proxy_url:
@@ -118,7 +123,15 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
             return resp.read().decode(charset, errors="replace")
 
     def _fetch_first(urls, timeout=FETCH_TIMEOUT, proxy_url=None):
-        for url in urls:
+        expanded = []
+        for u in urls:
+            expanded.append(u)
+            # ghproxy.net 包装的 URL 自动展开为直连，作为 Actions 等环境的回退：
+            # ghproxy 在部分数据中心 IP 上不可达，而 raw.githubusercontent 属 GitHub 自家 CDN，Actions 必定可达。
+            m = re.match(r"https?://ghproxy\.net/(https?://.+)", u)
+            if m:
+                expanded.append(m.group(1))
+        for url in expanded:
             try:
                 return _fetch_text(url, timeout=timeout, proxy_url=proxy_url)
             except Exception:

@@ -26,6 +26,11 @@ jobs:
 
       - name: Generate curated CN live source (rt_sync HTTP probe)
         # Actions 模式：跳过 clone/push，直接把实测筛选后的国内直播源写到 generated/iptv_cn_filtered.txt
+        # 必须传 GH_TOKEN：rt_sync 拉取 github 系源（如 iptv-org 中国频道）需要 Bearer 鉴权，
+        # 否则会被 GitHub API 限流导致「拉取失败」，最终单一直播源台数大幅缩水。
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          LIVE_PROBE: ${{ vars.LIVE_PROBE }}
         run: python rt_sync.py --probe http --output iptv_cn_filtered.txt --github-actions --repo-path .
 
       - name: Build encrypted blob
