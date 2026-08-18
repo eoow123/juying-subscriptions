@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-18T07:34:20Z",
+  "updated_at": "2026-08-18T10:08:41Z",
   "count": 24,
   "items": [
     {
@@ -89,7 +89,7 @@
       "type": "live"
     },
     {
-      "name": "iptv-org 全球直播（14565 台）",
+      "name": "iptv-org 国内直播（308 台）",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv-org.txt",
       "type": "live"
     },
