@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated_at": "2026-08-18T07:17:26Z",
-  "count": 23,
+  "updated_at": "2026-08-18T07:34:20Z",
+  "count": 24,
   "items": [
     {
       "name": "饭太硬",
@@ -86,6 +86,11 @@
     {
       "name": "sdyby2006/TV 直播源（每 12h 校验）（已筛）",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/sdyby2006.txt",
+      "type": "live"
+    },
+    {
+      "name": "iptv-org 全球直播（14565 台）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv-org.txt",
       "type": "live"
     },
     {
