@@ -150,6 +150,20 @@ def decrypt_manifest(b64: str, key: str) -> dict:
 # ---------------------------------------------------------------------------
 # 抓取
 # ---------------------------------------------------------------------------
+def _proxy_opener():
+    """若环境设了 HTTPS_PROXY/HTTP_PROXY（含小写），则走代理抓取（本机可借此加速/绕过 iptv-org 直连限制）。
+    未设置则返回默认 opener（直连）。Actions 环境通常不设代理，行为不变。"""
+    proxies = {}
+    for k in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        v = (os.environ.get(k) or "").strip()
+        if v:
+            key = "https" if k.lower().startswith("https") else "http"
+            proxies[key] = v
+    if proxies:
+        return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+    return urllib.request.build_opener()
+
+
 def fetch_text(url: str, timeout: int = None) -> str:
     timeout = timeout or FETCH_TIMEOUT
     last_err = None
@@ -158,10 +172,11 @@ def fetch_text(url: str, timeout: int = None) -> str:
     if GH_TOKEN and ("github.com" in host or "githubusercontent.com" in host
                      or "github.io" in host):
         headers["Authorization"] = f"Bearer {GH_TOKEN}"
+    opener = _proxy_opener()
     for attempt in range(MAX_RETRIES + 1):
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with opener.open(req, timeout=timeout) as resp:
                 charset = resp.headers.get_content_charset() or "utf-8"
                 return resp.read().decode(charset, errors="replace")
         except Exception as e:  # noqa: BLE001
@@ -498,6 +513,22 @@ _ISO_CN = {
     "MX": "墨西哥", "NL": "荷兰", "PT": "葡萄牙", "PL": "波兰", "UA": "乌克兰",
 }
 
+# iptv-org 只保留「中国」频道（大陆）。如需纳入港澳台，把 "HK"/"TW"/"MO" 加入即可。
+CHINA_CODES = {"CN"}
+
+# 中国频道按广电体系细分：央视台 / 卫视台 / 地方台（其余中国频道兜底归地方台）。
+# 命名混合中英文（iptv-org 频道名常是 CCTV-1 / Hunan Satellite TV / 北京电视台 等），故双规则覆盖。
+_CN_CAT_ORDER = {"央视台": 0, "卫视台": 1, "地方台": 2}
+
+
+def _cn_category(name: str) -> str:
+    n = (name or "").upper()
+    if "CCTV" in n or "央视" in name or "中央" in name:
+        return "央视台"
+    if "卫视" in name or "SATELLITE" in n:
+        return "卫视台"
+    return "地方台"
+
 
 def _fetch_first(urls, timeout: int = 120):
     """依次尝试多个镜像 URL，返回首个成功的内容；全部失败则抛出最后一个异常。"""
@@ -512,8 +543,9 @@ def _fetch_first(urls, timeout: int = 120):
 
 def build_iptv_org(out_dir: str):
     """iptv-org/api：抓 channels.json + streams.json，按频道映射并过滤
-    （跳过 feed/已停播/NSFW/明确失败状态），按国家分组，生成 generated/iptv-org.txt（#genre#）。
-    返回 (live 条目, 频道数)。注：不另行 HTTP 探测，避免 Actions IP 误判。"""
+    （跳过 feed/已停播/NSFW/明确失败状态），**只保留中国频道（央视台/卫视台/地方台）**，
+    按分类分组生成 generated/iptv-org.txt（#genre#）。返回 (live 条目, 频道数)。
+    注：不另行 HTTP 探测，避免 Actions IP 误判；本机若设了代理环境变量可加速抓取。"""
     urls_ch = [
         "https://iptv-org.github.io/api/channels.json",
         "https://raw.githubusercontent.com/iptv-org/api/master/channels.json",
@@ -553,16 +585,19 @@ def build_iptv_org(out_dir: str):
         st = s.get("status")
         if st in ("offline", "timeout", "error", "dead"):
             continue
-        name = (ch.get("name") or cid).strip()
-        if not name:
-            continue
         # channels 字段兼容：旧 API 为 countries 数组，新 API 为 country 字符串
         country_field = ch.get("countries") or ch.get("country")
         if isinstance(country_field, list):
-            code = country_field[0] if country_field else "其他"
+            code = country_field[0] if country_field else ""
         else:
-            code = country_field or "其他"
-        group = _ISO_CN.get(code, code) if code != "其他" else "其他"
+            code = country_field or ""
+        # ★ 仅保留中国频道（央视台/卫视台/地方台），其余国家全部丢弃
+        if code not in CHINA_CODES:
+            continue
+        name = (ch.get("name") or cid).strip()
+        if not name:
+            continue
+        group = _cn_category(name)  # 央视台 / 卫视台 / 地方台
         key = (group, name, url)
         if key in seen:
             continue
@@ -571,12 +606,14 @@ def build_iptv_org(out_dir: str):
 
     if not out:
         return None, 0
+    # 按 央视台 → 卫视台 → 地方台 顺序排列，App 内分组清晰
+    out.sort(key=lambda x: (_CN_CAT_ORDER.get(x[0], 9), x[1]))
     os.makedirs(out_dir, exist_ok=True)
     fname = "iptv-org.txt"
     with open(os.path.join(out_dir, fname), "w", encoding="utf-8") as f:
         f.write(emit_live_txt(out))
     entry = {
-        "name": f"iptv-org 全球直播（{len(out)} 台）",
+        "name": f"iptv-org 国内直播（{len(out)} 台）",
         "url": GENERATED_BASE_URL + fname,
         "type": "live",
     }
