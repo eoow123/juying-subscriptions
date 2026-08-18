@@ -97,6 +97,27 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
     CLARITY_RE = re.compile(r"\s*[\(（]\s*((?:\d{3,4}\s*[pP])|高清|超清|标清|原画|蓝光|流畅|画质|清晰度|HD|SD|FHD|UHD|4K|2K|1080|720|540|360)\s*[\)）]\s*$", re.IGNORECASE)
     RES_RE_XY = re.compile(r"(\d{3,4})\s*[xX*×]\s*(\d{3,4})")
     RES_RE_P = re.compile(r"(\d{3,4})\s*[pP]")
+    # 组播/内网代理死链过滤（零请求零误判，与 build.py 口径一致，问题1 数据端兜底）
+    # 命中：udp:// / rtp:// 原生组播，以及 http(s)://host/rtp/... 或 /udp/... 形式的组播代理
+    _MULTICAST_RE = re.compile(r"(?i)(^(udp|rtp)://|(https?://[^/]+)?/(udp|rtp)(/|:))")
+    # 内网/组播代理黑名单域名（可在此追加确认不可达的域名）
+    BLACKLIST_DOMAINS = set([
+        # "222.86.13.51:9999",  # 例：某组播代理 host，按需追加
+    ])
+
+    def _is_multicast(url):
+        if not url:
+            return True
+        u = url.strip().lower()
+        if _MULTICAST_RE.search(u):
+            return True
+        try:
+            host = urllib.parse.urlparse(u).netloc.lower()
+        except Exception:
+            host = ""
+        if host and host in BLACKLIST_DOMAINS:
+            return True
+        return False
 
     # 允许影刀参数覆盖
     HTTP_PROBE_TIMEOUT = int(probe_timeout or 8)
@@ -212,6 +233,9 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
         for group, raw_name, url, attrs in rows:
             name = NAME_ALIASES.get(_clean_name(raw_name), _clean_name(raw_name))
             if not name or _is_ad(name, group):
+                continue
+            if _is_multicast(url):
+                _log(f"  [过滤] {label}: 丢弃组播/内网代理死链 {url}")
                 continue
             height, portrait_invalid = _parse_resolution(attrs.get("tvg-resolution", ""))
             if not portrait_invalid:
