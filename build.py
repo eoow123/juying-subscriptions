@@ -23,6 +23,11 @@
       结果写入 .probe_cache.json 跨次复用（TTL 7天）以降低 Actions IP 暴露。
       说明：原设计「不做死链校验」是因为 Actions 数据中心 IP 被上游当爬虫误判率高；
       方案二采用 fail-open + 增量缓存把误判风险压到最低，但默认仍关闭，先上稳的一。
+  - 爬虫 jar 可达性筛查（JAR_FILTER，默认开启）：config 源配置内 spider 字段指向的
+    .jar（常被伪装成 .jpg）若托管域名已死，App 端会报「所有代理均不可达」。构建期探测
+    每个 config 源的 spider jar 是否可下载，确定性死链（404/410/连接拒绝/DNS失败）直接
+    剔除，不进入 repo.json；超时/SSL/403 等不确定失败 fail-open 保留。设 JAR_FILTER=0
+    关闭；JAR_FILTER_DRYRUN=1 只记录不剔除（用于验证）。
   - iptv-org 源：抓 channels.json + streams.json，按频道映射（跳过 feed/已停播/NSFW/
     明确失败状态），按国家分组生成 generated/iptv-org.txt；当前 API 无 status 字段时保留全部
     映射流，不自建探测（避免 Actions IP 误判）。
@@ -46,6 +51,7 @@ import json
 import os
 import re
 import socket
+import ssl
 import sys
 import urllib.error
 import urllib.parse
@@ -699,6 +705,155 @@ SOURCES = [
 
 
 # ---------------------------------------------------------------------------
+# 爬虫 jar 可达性筛查（JAR_FILTER）
+# ---------------------------------------------------------------------------
+# 设备拉取 TVBox 配置后，配置内 spider 字段指向的 .jar（常被伪装成 .jpg 等扩展名）
+# 若其托管域名已死/不可达，App 端会报「所有代理均不可达」。本步骤在构建期探测每个
+# config 源的 spider jar 是否可下载，确定性死链直接剔除，使其不进入 repo.json，
+# 从源头避免用户踩坑。
+#
+# 探测策略（fail-open，与 LIVE_PROBE 同源思路，避免 Actions IP 误判）：
+#   - 候选地址：GitHub raw 类走「直连 + ghproxy/gh-proxy/gh.xxooo/gh.idayer 代理」
+#     （设备端 downloadJarWithProxy 同款链路）；第三方域名仅直连。
+#   - 判定：拿到 200/206 = 可达(保留)；404/410/连接拒绝/DNS失败 = 确定性死链(剔除)；
+#     超时/SSL错误/403 = 不确定(保留，fail-open 防误杀)。
+#   - 默认开启（JAR_FILTER=1）；设 JAR_FILTER=0 关闭；设 JAR_FILTER_DRYRUN=1
+#     只记录不剔除（用于验证）。
+# ---------------------------------------------------------------------------
+GITHUB_PROXIES = [
+    "https://ghproxy.net/",
+    "https://gh-proxy.com/",
+    "https://gh.xxooo.cf/",
+    "https://gh.idayer.com/",
+]
+_JAR_PROBE_TIMEOUT = 15
+_JAR_PROBE_CACHE = {}  # 同进程内去重，避免重复探测同一 URL
+
+
+def _is_github_raw(url: str) -> bool:
+    u = url.lower()
+    return "raw.githubusercontent.com" in u or ("github.com" in u and "/raw/" in u)
+
+
+def _jar_candidates(jar_url: str):
+    if _is_github_raw(jar_url):
+        return [jar_url] + [p + jar_url for p in GITHUB_PROXIES]
+    return [jar_url]
+
+
+def _extract_spider_urls(text: str):
+    """从配置 JSON 中提取 spider 字段里的所有 http(s) URL（jar 常被伪装扩展名）。"""
+    out = []
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return out
+    if not isinstance(data, dict):
+        return out
+
+    def scan(sp):
+        if not sp:
+            return
+        for tok in str(sp).split(","):
+            tok = tok.strip()
+            if tok.startswith("http://") or tok.startswith("https://"):
+                out.append(tok)
+
+    scan(data.get("spider"))
+    for site in data.get("sites", []) or []:
+        if isinstance(site, dict):
+            scan(site.get("spider"))
+    return out
+
+
+def _probe_url(url: str):
+    """返回 (状态, 备注)。状态: True=可达; False=确定性死链; None=不确定(fail-open)。"""
+    if url in _JAR_PROBE_CACHE:
+        return _JAR_PROBE_CACHE[url]
+    candidates = _jar_candidates(url)
+    definitive = False
+    result = (None, "ambiguous")
+    for c in candidates:
+        try:
+            req = urllib.request.Request(
+                c, method="GET",
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Range": "bytes=0-1023",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=_JAR_PROBE_TIMEOUT) as resp:
+                if resp.status in (200, 206):
+                    result = (True, f"{c} -> {resp.status}")
+                    break
+                if resp.status in (404, 410):
+                    definitive = True
+        except urllib.error.HTTPError as e:
+            if e.code in (404, 410):
+                definitive = True
+        except urllib.error.URLError as e:
+            r = e.reason
+            if isinstance(r, socket.timeout):
+                pass
+            elif isinstance(r, ConnectionError) or "Connection refused" in str(r) \
+                    or "Name or service" in str(r) or "getaddrinfo" in str(r):
+                definitive = True
+        except (socket.timeout, ConnectionError, ssl.SSLError):
+            pass  # 超时/SSL 不确定
+        except Exception:  # noqa: BLE001
+            pass
+    if result[0] is not True and definitive:
+        result = (False, "definitive failure (404/410/connection refused/DNS)")
+    _JAR_PROBE_CACHE[url] = result
+    return result
+
+
+def filter_unreachable_jar(items, dry_run=False):
+    out = []
+    dropped = []
+    for e in items:
+        if e.get("type") != "config":
+            out.append(e)
+            continue
+        url = e.get("url", "")
+        if not url:
+            out.append(e)
+            continue
+        try:
+            text = fetch_text(url, timeout=30)
+        except Exception as ex:  # noqa: BLE001
+            print(f"  [JAR-FILTER] config fetch failed, keep: {e.get('name')}: {ex}",
+                  file=sys.stderr)
+            out.append(e)
+            continue
+        jar_urls = _extract_spider_urls(text)
+        if not jar_urls:
+            out.append(e)
+            continue
+        bad = []
+        for ju in jar_urls:
+            ok, note = _probe_url(ju)
+            if ok is True:
+                print(f"  [JAR-FILTER] OK   {e.get('name')} <- {ju} ({note})")
+            elif ok is False:
+                bad.append((ju, note))
+                print(f"  [JAR-FILTER] BAD  {e.get('name')} <- {ju} ({note})", file=sys.stderr)
+            else:
+                print(f"  [JAR-FILTER] AMB  {e.get('name')} <- {ju} ({note}) (fail-open, keep)")
+        if bad:
+            if dry_run:
+                print(f"  [JAR-FILTER][DRYRUN] would DROP {e.get('name')}: {len(bad)} dead jar(s)",
+                      file=sys.stderr)
+            else:
+                dropped.append((e.get("name"), bad))
+                print(f"  [JAR-FILTER] DROP {e.get('name')}: {len(bad)} unreachable spider jar(s)",
+                      file=sys.stderr)
+                continue
+        out.append(e)
+    return out, dropped
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 def build() -> dict:
@@ -773,6 +928,17 @@ def build() -> dict:
             continue
         seen.add(k)
         items.append(e)
+
+    # 爬虫 jar 可达性筛查（JAR_FILTER）：剔除 spider jar 确定性死链的 config 源，
+    # 避免设备上「所有代理均不可达」。fail-open：超时/SSL/403 保留，仅 404/410/
+    # 连接拒绝/DNS失败 才剔除。默认开启，JAR_FILTER=0 关闭，JAR_FILTER_DRYRUN=1 只记录不剔除。
+    if os.environ.get("JAR_FILTER", "1") == "1":
+        dry = os.environ.get("JAR_FILTER_DRYRUN", "0") == "1"
+        items, dropped = filter_unreachable_jar(items, dry_run=dry)
+        if dropped:
+            names = ", ".join(n for n, _ in dropped)
+            print(f"  [JAR-FILTER] 共剔除 {len(dropped)} 个源（确定性 jar 死链）：{names}",
+                  file=sys.stderr)
 
     # 统计 type
     type_count = {}
