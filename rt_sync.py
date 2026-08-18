@@ -81,13 +81,14 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
         {"label": "sdyby2006", "urls": ["https://raw.githubusercontent.com/sdyby2006/TV/master/result.txt"]},
     ]
     PROBE_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    HTTP_PROBE_TIMEOUT = 8
-    HTTP_PROBE_WORKERS = 16
-    FFPROBE_TIMEOUT = 15
-    FFPROBE_WORKERS = 6
+    HTTP_PROBE_TIMEOUT = 6          # 单源 HTTP 探测超时（秒）；m3u8 首包通常 1-3s，6s 足够筛死链
+    HTTP_PROBE_WORKERS = 32          # HTTP 探测并发；默认家用宽带可承受 32
+    FFPROBE_TIMEOUT = 12             # ffprobe 单源超时（秒）；比 HTTP 严但更可靠
+    FFPROBE_WORKERS = 6              # ffprobe 并发不宜过高，避免本机 CPU/IO 爆掉
     FETCH_TIMEOUT = 60
     FETCH_WORKERS = 8
     MAX_SOURCES_PER_CHANNEL = 16
+    PROBE_CACHE_TTL_DAYS = 7         # 探测结果缓存 7 天，避免每日全量重测
     NAME_ALIASES = {"上海卫视": "东方卫视", "上海东方卫视": "东方卫视", "内蒙卫视": "内蒙古卫视"}
     AD_KEYWORDS = ["广告", "购物", "推广", "商城", "彩票", "测试", "带货", "广播", "广播电台", "test", "test.", "undefined", "radio", "xxx", "av", "成人", "福利", "诈"]
     PROVINCES = ["北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆", "香港", "澳门", "台湾", "深圳", "厦门", "青岛", "大连", "宁波", "成都", "杭州", "南京", "武汉", "广州", "西安"]
@@ -226,29 +227,103 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
             by_cat[c].sort(key=_nsort)
         return by_cat
 
-    def _http_probe(url):
+    # 探测缓存：避免每日全量重测；TTL 内直接复用上次结果
+    def _load_probe_cache() -> dict:
+        cache_path = os.path.join(abs_repo_path, "generated", ".rt_probe_cache.json")
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_probe_cache(cache: dict):
+        cache_path = os.path.join(abs_repo_path, "generated", ".rt_probe_cache.json")
+        try:
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(cache, f, ensure_ascii=False)
+        except Exception as e:
+            _log(f"  [WARN] 写探测缓存失败: {e}")
+
+    def _http_probe(url, cache=None):
         if not url.startswith("http"):
-            return True
+            return "alive", True
+        if cache is not None:
+            c = cache.get(url)
+            if c and (time.time() - c.get("t", 0)) < PROBE_CACHE_TTL_DAYS * 86400:
+                return c.get("s", "unknown"), True  # 缓存命中，直接返回状态
         try:
             req = urllib.request.Request(url, headers={"User-Agent": PROBE_UA, "Range": "bytes=0-0", "Referer": url}, method="GET")
             with urllib.request.urlopen(req, timeout=HTTP_PROBE_TIMEOUT) as resp:
-                return resp.getcode() not in (404, 410)
+                code = resp.getcode()
+                if code in (404, 410):
+                    return "dead", True
+                return "alive", True
         except urllib.error.HTTPError as e:
-            return e.code not in (404, 410)
+            if e.code in (404, 410):
+                return "dead", True
+            return "unknown", True  # 403/5xx 保留（fail-open）
+        except (urllib.error.URLError, socket.timeout, ConnectionError, OSError):
+            return "dead", True  # DNS 失败/连接拒绝/网络不可达
         except Exception:
-            return True
+            return "unknown", True
 
-    def _ffprobe_check(url):
+    # ffprobe 存在性只检查一次
+    _FFPROBE_AVAILABLE = None
+
+    def _ffprobe_available() -> bool:
+        nonlocal _FFPROBE_AVAILABLE
+        if _FFPROBE_AVAILABLE is not None:
+            return _FFPROBE_AVAILABLE
+        try:
+            res = subprocess.run(["ffprobe", "-version"], capture_output=True, timeout=5)
+            _FFPROBE_AVAILABLE = res.returncode == 0
+        except Exception:
+            _FFPROBE_AVAILABLE = False
+        return _FFPROBE_AVAILABLE
+
+    def _ffprobe_check(url, cache=None):
+        if not url.startswith("http"):
+            return "alive", True
+        if cache is not None:
+            c = cache.get(url)
+            if c and (time.time() - c.get("t", 0)) < PROBE_CACHE_TTL_DAYS * 86400:
+                return c.get("s", "unknown"), True
+        if not _ffprobe_available():
+            return "unknown", False  # False 表示 ffprobe 不可用，需外层报错
         headers = f"User-Agent: {PROBE_UA}\r\nReferer: {url}\r\n"
-        cmd = ["ffprobe", "-hide_banner", "-v", "error", "-analyzeduration", "1000000", "-probesize", "32", "-headers", headers, "-timeout", str(FFPROBE_TIMEOUT * 1000000), "-show_entries", "format=format_name", "-show_entries", "stream=codec_type", "-of", "default=noprint_wrappers=1:nokey=1", url]
+        cmd = [
+            "ffprobe", "-hide_banner", "-v", "error",
+            "-analyzeduration", "1s",
+            "-probesize", "512",
+            "-headers", headers,
+            "-timeout", str(FFPROBE_TIMEOUT * 1000000),
+            "-show_entries", "format=format_name",
+            "-show_entries", "stream=codec_type",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            url
+        ]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=FFPROBE_TIMEOUT + 5)
-            if res.stdout.strip():
-                return True
+            out = res.stdout.strip().lower()
             err = res.stderr.strip().lower()
-            return not any(s in err for s in ("404 not found", "forbidden", "connection refused", "could not resolve", "invalid data", "unable to open resource", "http error", "end of file"))
+            # 只要有视频或音频流，且没致命错误，就判 alive
+            has_stream = "video" in out or "audio" in out
+            if res.returncode == 0 and has_stream:
+                return "alive", True
+            # 明确的死链/不可播信号
+            fatal = ("404 not found", "forbidden", "connection refused", "could not resolve",
+                     "invalid data", "unable to open resource", "http error 4", "http error 5",
+                     "end of file", "operation not permitted", "no route to host",
+                     "input/output error", "failed to resolve")
+            if any(s in err for s in fatal):
+                return "dead", True
+            # 其他情况保留（fail-open）
+            return "unknown", True
+        except subprocess.TimeoutExpired:
+            return "unknown", True
         except Exception:
-            return True
+            return "unknown", True
 
     def _run_git(args, cwd=None, check=True, timeout=60, **_kwargs):
         if cwd and os.path.exists(os.path.join(cwd, ".git", "index.lock")):
@@ -312,34 +387,57 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
         total = len(flat_sources)
         _log(f"开始探测 {total} 个源...（并发={HTTP_PROBE_WORKERS if probe_mode == 'http' else FFPROBE_WORKERS}, 超时={HTTP_PROBE_TIMEOUT if probe_mode == 'http' else FFPROBE_TIMEOUT}s）")
 
+        cache = _load_probe_cache()
+        cache_hit = 0
         ok_set = set()
         workers = HTTP_PROBE_WORKERS if probe_mode == "http" else FFPROBE_WORKERS
         probe_fn = _http_probe if probe_mode == "http" else _ffprobe_check
 
         completed = 0
         dead = 0
+        unknown = 0
         progress_interval = max(1, total // 20)  # 每 5% 报一次
         t0 = time.time()
+        cache_updated = {}
+
+        # 先检查 ffprobe 是否可用
+        if probe_mode == "ffprobe" and not _ffprobe_available():
+            return "错误：本机未检测到 ffprobe。请安装 ffmpeg 并确保 ffprobe 在 PATH 中，或改用 probe_mode='http'/'none'。"
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            fs = {ex.submit(probe_fn, u): (c, n, u, h) for c, n, u, h in flat_sources}
+            fs = {ex.submit(probe_fn, u, cache): (c, n, u, h) for c, n, u, h in flat_sources}
             for f in concurrent.futures.as_completed(fs):
                 item = fs[f]
                 completed += 1
                 try:
-                    alive = f.result()
+                    status, ok = f.result()
                 except Exception:
-                    alive = True  # fail-open
-                if alive:
-                    ok_set.add(item)
-                else:
+                    status, ok = "unknown", True
+
+                # 如果 ffprobe 返回 ok=False，说明 ffprobe 不可用（前面已预检，理论上不会触发）
+                if not ok:
+                    return "错误：ffprobe 不可用。请安装 ffmpeg 或改用 http/none 模式。"
+
+                cache_updated[item[2]] = {"s": status, "t": int(time.time())}
+                if status == "dead":
                     dead += 1
+                elif status == "unknown":
+                    unknown += 1
+                    ok_set.add(item)  # fail-open 保留
+                else:
+                    ok_set.add(item)
+                    if item[2] in cache:
+                        cache_hit += 1
 
                 if completed % progress_interval == 0 or completed == total:
                     pct = completed * 100 // total
                     elapsed = time.time() - t0
                     eta = (elapsed / completed) * (total - completed) if completed else 0
-                    _log(f"  探测进度 {completed}/{total} ({pct}%) | 死链 {dead} | 已用 {elapsed:.0f}s | 预计剩余 {eta:.0f}s")
+                    _log(f"  探测进度 {completed}/{total} ({pct}%) | 死链 {dead} | 保留(含未知) {len(ok_set)} | 已用 {elapsed:.0f}s | 预计剩余 {eta:.0f}s")
+
+        cache.update(cache_updated)
+        _save_probe_cache(cache)
+        _log(f"  [缓存] 本次探测 {len(cache_updated)} 条，缓存命中约 {cache_hit} 条")
 
         # 重建结果
         new_by_cat = {"央视台": [], "卫视台": [], "地方台": []}
