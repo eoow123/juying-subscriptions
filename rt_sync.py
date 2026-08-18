@@ -76,7 +76,7 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
         {"label": "YanG国内", "urls": ["https://ghproxy.net/https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u", "https://cdn.jsdelivr.net/gh/YanG-1989/m3u@main/Gather.m3u"]},
         {"label": "zbefine国内", "urls": ["https://ghproxy.net/https://raw.githubusercontent.com/zbefine/iptv/main/iptv.m3u", "https://cdn.jsdelivr.net/gh/zbefine/iptv@main/iptv.m3u"]},
         {"label": "fanmingming国内(高频)", "urls": ["https://ghproxy.net/https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/ipv6.m3u", "https://cdn.jsdelivr.net/gh/fanmingming/live@main/tv/m3u/ipv6.m3u"]},
-        {"label": "iptv-org中国", "urls": ["https://ghproxy.net/https://raw.githubusercontent.com/iptv-org/iptv/master/channels/cn.m3u", "https://cdn.jsdelivr.net/gh/iptv-org/iptv@master/channels/cn.m3u"]},
+        {"label": "iptv-org中国", "urls": ["https://ghproxy.net/https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u", "https://cdn.jsdelivr.net/gh/iptv-org/iptv@master/streams/cn.m3u"]},
     ]
     LEGACY_TXT_SOURCES = [
         {"label": "hkbiang", "urls": ["https://raw.githubusercontent.com/hkbiang/TV/master/result.txt"]},
