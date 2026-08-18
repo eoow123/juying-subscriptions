@@ -88,6 +88,10 @@ GENERATED_BASE_URL = (
     "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/"
 )
 
+# rt_sync（GitHub Actions HTTP 实测）生成的单一国内直播聚合源，取代旧 hkbiang/sdyby2006/iptv-org 多个直播条目
+CN_LIVE_TXT_NAME = "iptv_cn_filtered.txt"
+CN_LIVE_TXT_URL = GENERATED_BASE_URL + CN_LIVE_TXT_NAME
+
 # 探测用浏览器 UA：很多直播 CDN 对「非浏览器 UA」直接返回 403，必须用真实浏览器 UA 才探得出真假。
 PROBE_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -624,33 +628,46 @@ def build_iptv_org(out_dir: str):
 # ---------------------------------------------------------------------------
 # 上游源定义（顺序即「从上到下」的展示顺序；laoma2053 为已校验骨干）
 # ---------------------------------------------------------------------------
+def make_cn_live_entry(txt_path: str):
+    """读取 rt_sync 生成的国内直播聚合 txt（#genre# 格式），统计唯一频道(台)数，
+    生成单个 live 订阅条目：国内直播(N台 YYYY-M-D)。
+    rt_sync 的 CN_TV_SOURCES 已涵盖 iptv-org 中国频道，故本单源取代旧 hkbiang/sdyby2006/iptv-org 多个直播条目。
+    txt 不存在/为空时返回 (None, 0)。"""
+    try:
+        with open(txt_path, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except Exception as e:  # noqa: BLE001
+        print(f"  [WARN] 读取 {txt_path} 失败: {e}", file=sys.stderr)
+        return None, 0
+    channels = set()
+    for ln in lines:
+        s = ln.strip()
+        if not s or "#genre#" in s or s.startswith("#EXTM3U"):
+            continue
+        if ",http" in s or ",rtmp" in s or ",rtsp" in s:
+            name = s.split(",", 1)[0].strip()
+            if name:
+                channels.add(name)
+    n = len(channels)
+    if n == 0:
+        return None, 0
+    # 北京时间（UTC+8）作为生成日期，与用户本地时区一致
+    bj = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)
+    date_str = f"{bj.year}-{bj.month}-{bj.day}"
+    entry = {
+        "name": f"国内直播({n}台 {date_str})",
+        "url": CN_LIVE_TXT_URL,
+        "type": "live",
+    }
+    return entry, n
+
+
 SOURCES = [
     {
         "id": "laoma2053",
         "url": "https://raw.githubusercontent.com/laoma2053/awesome-zhuiju-free/main/resources/resources.json",
         "parser": "awesome_resources",
         "category": "tvbox_config",
-    },
-    {
-        "id": "hkbiang_live",
-        "name": "hkbiang/TV 直播源（每日校验）",
-        "url": "https://raw.githubusercontent.com/hkbiang/TV/master/result.txt",
-        "parser": "single_live",
-        "filter_live": True,
-        "generated_name": "hkbiang.txt",
-    },
-    {
-        "id": "sdyby2006_live",
-        "name": "sdyby2006/TV 直播源（每 12h 校验）",
-        "url": "https://raw.githubusercontent.com/sdyby2006/TV/master/result.txt",
-        "parser": "single_live",
-        "filter_live": True,
-        "generated_name": "sdyby2006.txt",
-    },
-    {
-        "id": "iptv_org",
-        "name": "iptv-org 全球直播源",
-        # 无 url：build_iptv_org 自行抓取 channels.json + streams.json 并生成 generated/iptv-org.txt
     },
     {
         "id": "to4kacc",
@@ -738,6 +755,14 @@ def build() -> dict:
         per_source[sid] = len(entries)
         for e in entries:
             collected.append((sid, e))
+
+    # rt_sync 生成的单一国内直播源（取代旧 hkbiang/sdyby2006/iptv-org 多个直播条目）
+    cn_live_entry, cn_live_n = make_cn_live_entry(os.path.join(GENERATED_DIR, CN_LIVE_TXT_NAME))
+    if cn_live_entry:
+        collected.insert(0, ("cn_live", cn_live_entry))
+        per_source["cn_live"] = cn_live_n
+    else:
+        print("  [WARN] 未找到 iptv_cn_filtered.txt（rt_sync 未运行？），跳过国内直播单源", file=sys.stderr)
 
     # 去重（按 url 规范化键），保留首次出现顺序
     seen = set()

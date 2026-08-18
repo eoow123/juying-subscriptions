@@ -45,7 +45,9 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
                        enable_legacy_sources=0,
                        proxy="",
                        probe_timeout=8,
-                       probe_workers=16):
+                       probe_workers=16,
+                       github_actions=False,
+                       repo_path=None):
     """
     title: 电视直播源筛选实测与同步
     description: 聚合多路电视直播源，进行广告过滤、分类去重，并通过 HTTP 或 ffprobe 进行实测，最后同步至 GitHub 仓库。
@@ -343,23 +345,32 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
     auth_url = f"https://{github_token}@{repo_url.replace('https://', '')}" if github_token else repo_url
 
     # 1. 仓库准备
-    if not os.path.exists(os.path.join(abs_repo_path, ".git")):
-        _log(f"正在克隆仓库...")
-        os.makedirs(abs_workspace, exist_ok=True)
-        _run_git(["clone", auth_url, abs_repo_path])
+    if github_actions:
+        # Actions 环境已通过 actions/checkout 拿到仓库，直接用工作区根目录，不再 clone
+        abs_repo_path = os.path.abspath(repo_path or os.environ.get("GITHUB_WORKSPACE") or os.getcwd())
+        os.makedirs(abs_repo_path, exist_ok=True)
+        _log(f"[Actions] 使用已 checkout 仓库: {abs_repo_path}")
+    else:
+        if not os.path.exists(os.path.join(abs_repo_path, ".git")):
+            _log(f"正在克隆仓库...")
+            os.makedirs(abs_workspace, exist_ok=True)
+            _run_git(["clone", auth_url, abs_repo_path])
 
     # 2. 网络检查与同步
     github_ok = False
-    try:
-        subprocess.run(["git", "ls-remote", auth_url, "HEAD"], capture_output=True, timeout=15, check=True)
-        github_ok = True
-    except Exception:
-        _log("GitHub 当前不可达，将仅在本地处理")
+    if github_actions:
+        _log("[Actions] 跳过 git ls-remote/fetch/reset/push，由 workflow 负责提交 generated/")
+    else:
+        try:
+            subprocess.run(["git", "ls-remote", auth_url, "HEAD"], capture_output=True, timeout=15, check=True)
+            github_ok = True
+        except Exception:
+            _log("GitHub 当前不可达，将仅在本地处理")
 
-    if github_ok:
-        _run_git(["remote", "set-url", "origin", auth_url], cwd=abs_repo_path)
-        _run_git(["fetch", "origin"], cwd=abs_repo_path)
-        _run_git(["reset", "--hard", "origin/main"], cwd=abs_repo_path)
+        if github_ok:
+            _run_git(["remote", "set-url", "origin", auth_url], cwd=abs_repo_path)
+            _run_git(["fetch", "origin"], cwd=abs_repo_path)
+            _run_git(["reset", "--hard", "origin/main"], cwd=abs_repo_path)
 
     # 3. 拉取上游
     sources = CN_TV_SOURCES[:]
@@ -468,6 +479,9 @@ def sync_cn_tv_sources(repo_url=DEFAULT_REPO_URL,
     total = sum(len(s) for ch in by_cat.values() for _, s in ch)
     _log(f"已生成 {out_path}：央视台 {len(by_cat['央视台'])} / 卫视台 {len(by_cat['卫视台'])} / 地方台 {len(by_cat['地方台'])}，共 {total} 源")
 
+    if github_actions:
+        return f"[Actions] 生成完成（未推送，交由 workflow 提交）：央视台 {len(by_cat['央视台'])} / 卫视台 {len(by_cat['卫视台'])} / 地方台 {len(by_cat['地方台'])}，共 {total} 源。"
+
     if not github_ok:
         return f"完成：共 {total} 源。GitHub 不可达，结果保留本地。"
 
@@ -520,9 +534,12 @@ if __name__ == "__main__":
     parser.add_argument("--proxy", default="", help="HTTP 代理")
     parser.add_argument("--probe-timeout", type=int, default=8, help="单源探测超时秒")
     parser.add_argument("--probe-workers", type=int, default=16, help="探测并发数")
+    parser.add_argument("--github-actions", action="store_true", help="GitHub Actions 模式：跳过 clone/push，直接写 generated/")
+    parser.add_argument("--repo-path", default=None, help="Actions 模式仓库根目录（默认取 GITHUB_WORKSPACE 或 cwd）")
     args = parser.parse_args()
     msg = sync_cn_tv_sources(
         args.repo_url, args.workspace, args.token, args.probe,
-        args.output, args.legacy, args.proxy, args.probe_timeout, args.probe_workers
+        args.output, args.legacy, args.proxy, args.probe_timeout, args.probe_workers,
+        github_actions=args.github_actions, repo_path=args.repo_path
     )
     print("RESULT:", msg)

@@ -24,6 +24,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Generate curated CN live source (rt_sync HTTP probe)
+        # Actions 模式：跳过 clone/push，直接把实测筛选后的国内直播源写到 generated/iptv_cn_filtered.txt
+        run: python rt_sync.py --probe http --output iptv_cn_filtered.txt --github-actions --repo-path .
+
       - name: Build encrypted blob
         env:
           RC4_KEY: ${{ secrets.RC4_KEY }}   # 留空则复用 App 端默认密钥（与 Rc4Util.KEY 一致）
