@@ -23,8 +23,9 @@
       结果写入 .probe_cache.json 跨次复用（TTL 7天）以降低 Actions IP 暴露。
       说明：原设计「不做死链校验」是因为 Actions 数据中心 IP 被上游当爬虫误判率高；
       方案二采用 fail-open + 增量缓存把误判风险压到最低，但默认仍关闭，先上稳的一。
-  - iptv-org 源：直接复用其官方 channels/streams 的 status=online 字段做健康过滤，
-    按国家分组生成 generated/iptv-org.txt，不自建探测。
+  - iptv-org 源：抓 channels.json + streams.json，按频道映射（跳过 feed/已停播/NSFW/
+    明确失败状态），按国家分组生成 generated/iptv-org.txt；当前 API 无 status 字段时保留全部
+    映射流，不自建探测（避免 Actions IP 误判）。
   - 所有「已筛」直播与 iptv-org 均落到 generated/ 由 CDN 分发；App 端订阅仓库点
     「添加」即取生成后的干净 URL，不再直连原始上游。
   - type 字段：
@@ -498,13 +499,32 @@ _ISO_CN = {
 }
 
 
+def _fetch_first(urls, timeout: int = 120):
+    """依次尝试多个镜像 URL，返回首个成功的内容；全部失败则抛出最后一个异常。"""
+    last = None
+    for u in urls:
+        try:
+            return fetch_text(u, timeout=timeout)
+        except Exception as e:  # noqa: BLE001
+            last = e
+    raise last or RuntimeError("all urls failed")
+
+
 def build_iptv_org(out_dir: str):
-    """iptv-org/api：抓 channels.json + streams.json，取 status=online 的流，
-    按国家分组，生成 generated/iptv-org.txt（#genre#）。返回 (live 条目, 频道数)。
-    注：直接复用 iptv-org 官方自检 status（online），不另行探测，避免 Actions IP 误判。"""
+    """iptv-org/api：抓 channels.json + streams.json，按频道映射并过滤
+    （跳过 feed/已停播/NSFW/明确失败状态），按国家分组，生成 generated/iptv-org.txt（#genre#）。
+    返回 (live 条目, 频道数)。注：不另行 HTTP 探测，避免 Actions IP 误判。"""
+    urls_ch = [
+        "https://iptv-org.github.io/api/channels.json",
+        "https://raw.githubusercontent.com/iptv-org/api/master/channels.json",
+    ]
+    urls_st = [
+        "https://iptv-org.github.io/api/streams.json",
+        "https://raw.githubusercontent.com/iptv-org/api/master/streams.json",
+    ]
     try:
-        ch_text = fetch_text("https://iptv-org.github.io/api/channels.json", timeout=90)
-        st_text = fetch_text("https://iptv-org.github.io/api/streams.json", timeout=90)
+        ch_text = _fetch_first(urls_ch, timeout=120)
+        st_text = _fetch_first(urls_st, timeout=120)
         channels = json.loads(ch_text)
         streams = json.loads(st_text)
     except Exception as e:  # noqa: BLE001
@@ -515,20 +535,33 @@ def build_iptv_org(out_dir: str):
     out = []
     seen = set()
     for s in streams:
-        if s.get("status") != "online":
-            continue
-        url = normalize_url(s.get("url", ""))
-        if not url:
-            continue
         cid = s.get("channel")
+        if not cid:
+            continue  # feed 不带频道名，跳过（无法确定频道名/分组）
+        url = normalize_url(s.get("url", ""))
+        if not url or not url.startswith("http"):
+            continue
         ch = by_id.get(cid)
         if not ch:
+            continue
+        if ch.get("closed"):
+            continue  # 已停播频道，其流多为死链
+        if ch.get("is_nsfw"):
+            continue  # 过滤 NSFW
+        # 仅跳过「明确失败」状态；无 status 字段（新 API 已移除）时全部保留。
+        # 注：iptv-org 当前 streams.json 无 status 字段，故默认保留所有映射流。
+        st = s.get("status")
+        if st in ("offline", "timeout", "error", "dead"):
             continue
         name = (ch.get("name") or cid).strip()
         if not name:
             continue
-        countries = ch.get("countries") or []
-        code = countries[0] if countries else "其他"
+        # channels 字段兼容：旧 API 为 countries 数组，新 API 为 country 字符串
+        country_field = ch.get("countries") or ch.get("country")
+        if isinstance(country_field, list):
+            code = country_field[0] if country_field else "其他"
+        else:
+            code = country_field or "其他"
         group = _ISO_CN.get(code, code) if code != "其他" else "其他"
         key = (group, name, url)
         if key in seen:
@@ -543,7 +576,7 @@ def build_iptv_org(out_dir: str):
     with open(os.path.join(out_dir, fname), "w", encoding="utf-8") as f:
         f.write(emit_live_txt(out))
     entry = {
-        "name": f"iptv-org 全球直播（{len(out)} 台·官方online）",
+        "name": f"iptv-org 全球直播（{len(out)} 台）",
         "url": GENERATED_BASE_URL + fname,
         "type": "live",
     }
