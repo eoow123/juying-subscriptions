@@ -540,6 +540,21 @@ def _cn_category(name: str) -> str:
     return "地方台"
 
 
+def _natural_key(s: str):
+    """自然排序键：把 'CCTV-1' / 'CCTV 10' / 'CCTV-13' 等拆成 文本+数字 交替元组，
+    数字按数值比较，使 CCTV-1 < CCTV-2 < … < CCTV-10（而非字典序 CCTV-1 < CCTV-10 < CCTV-2）。
+    连字符归一为空格，避免 'CCTV-1' 与 'CCTV 1' 因 ASCII 顺序错位；无数字的频道名退化为纯文本字典序。"""
+    s = (s or "").lower().replace("-", " ")
+    parts = re.split(r'(\d+)', s)
+    key = []
+    for i, t in enumerate(parts):
+        if i % 2 == 1:  # 奇数段 = 数字
+            key.append((1, int(t) if t else 0))
+        else:            # 偶数段 = 文本
+            key.append((0, t))
+    return key
+
+
 def _fetch_first(urls, timeout: int = 120):
     """依次尝试多个镜像 URL，返回首个成功的内容；全部失败则抛出最后一个异常。"""
     last = None
@@ -616,8 +631,8 @@ def build_iptv_org(out_dir: str):
 
     if not out:
         return None, 0
-    # 按 央视台 → 卫视台 → 地方台 顺序排列，App 内分组清晰
-    out.sort(key=lambda x: (_CN_CAT_ORDER.get(x[0], 9), x[1]))
+    # 按 央视台 → 卫视台 → 地方台 顺序排列，组内按频道名自然排序（CCTV-1<CCTV-2<…<CCTV-10）
+    out.sort(key=lambda x: (_CN_CAT_ORDER.get(x[0], 9), _natural_key(x[1])))
     os.makedirs(out_dir, exist_ok=True)
     fname = "iptv-org.txt"
     with open(os.path.join(out_dir, fname), "w", encoding="utf-8") as f:
