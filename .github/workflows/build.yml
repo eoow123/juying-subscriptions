@@ -27,6 +27,8 @@ jobs:
       - name: Build encrypted blob
         env:
           RC4_KEY: ${{ secrets.RC4_KEY }}   # 留空则复用 App 端默认密钥（与 Rc4Util.KEY 一致）
+          GH_TOKEN: ${{ secrets.GH_TOKEN }} # 可选：GitHub PAT，给 github 系域名抓取加 Bearer 鉴权（避免限流/IP被标）
+          LIVE_PROBE: ${{ vars.LIVE_PROBE }} # 可选：仓库变量设为 1 才开启「方案二 HTTP 探测」；默认关（先上方案一）
         run: python build.py --out dist
 
       - name: Commit & push rebuilt blob

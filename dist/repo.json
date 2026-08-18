@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-18T01:56:35Z",
+  "updated_at": "2026-08-18T07:02:24Z",
   "count": 23,
   "items": [
     {
@@ -79,13 +79,13 @@
       "type": "config"
     },
     {
-      "name": "hkbiang/TV 直播源（每日校验）",
-      "url": "https://raw.githubusercontent.com/hkbiang/TV/master/result.txt",
+      "name": "hkbiang/TV 直播源（每日校验）（已筛）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/hkbiang.txt",
       "type": "live"
     },
     {
-      "name": "sdyby2006/TV 直播源（每 12h 校验）",
-      "url": "https://raw.githubusercontent.com/sdyby2006/TV/master/result.txt",
+      "name": "sdyby2006/TV 直播源（每 12h 校验）（已筛）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/sdyby2006.txt",
       "type": "live"
     },
     {

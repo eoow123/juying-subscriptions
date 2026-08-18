@@ -15,10 +15,18 @@
   dist/repo.b64    加密后的 blob（部署到 CDN / R2 / Worker，App 拉取此文件）
 
 设计要点：
-  - 不做「死链校验」。GitHub Action 的数据中心 IP 会被很多上游当成爬虫/代理而
-    返回假死（HTML 或 403），误判率极高。订阅仓库只「从已校验的上游列表采集 +
-    手动精选」，实时性由上游各自的 Action 保证（hkbiang 每日、sdyby2006 每 12h、
-    to4kacc 每日）。
+  - 直播源「后端预筛」（仅对标记 filter_live 的 single_live 源生效）：
+      方案一（URL 规则，默认开启）：丢弃组播/内网代理地址（udp:// /rtp:// /…/udp/…
+      /…/rtp/…，家庭普通网络基本放不出）与可配置黑名单域名。零请求、零误判。
+      方案二（HTTP 探测，LIVE_PROBE=1 开启）：带浏览器 UA + Range 头 + 短超时并发
+      探测，仅删「连接拒绝/DNS失败/404/410」等确定性死链；超时/403/5xx 保留（防误杀），
+      结果写入 .probe_cache.json 跨次复用（TTL 7天）以降低 Actions IP 暴露。
+      说明：原设计「不做死链校验」是因为 Actions 数据中心 IP 被上游当爬虫误判率高；
+      方案二采用 fail-open + 增量缓存把误判风险压到最低，但默认仍关闭，先上稳的一。
+  - iptv-org 源：直接复用其官方 channels/streams 的 status=online 字段做健康过滤，
+    按国家分组生成 generated/iptv-org.txt，不自建探测。
+  - 所有「已筛」直播与 iptv-org 均落到 generated/ 由 CDN 分发；App 端订阅仓库点
+    「添加」即取生成后的干净 URL，不再直连原始上游。
   - type 字段：
       config  影视仓/TVBox 配置 JSON 地址（可直接加入 SOURCE_SUBSCRIPTIONS）
       live    影视仓/TVBox 直播源 TXT 地址（可加入直播订阅）
@@ -31,11 +39,14 @@
 
 import argparse
 import base64
+import concurrent.futures
 import datetime
 import json
 import os
 import re
+import socket
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -67,6 +78,42 @@ FETCH_UA = (
 )
 FETCH_TIMEOUT = 25  # 秒
 MAX_RETRIES = 2
+
+# ---------------------------------------------------------------------------
+# 直播源筛选（方案一：URL 规则；方案二：HTTP 探测）
+# ---------------------------------------------------------------------------
+# 生成的「已筛」直播文件托管在仓库 generated/ 目录，由 CDN 分发。
+GENERATED_BASE_URL = (
+    "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/"
+)
+
+# 探测用浏览器 UA：很多直播 CDN 对「非浏览器 UA」直接返回 403，必须用真实浏览器 UA 才探得出真假。
+PROBE_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+PROBE_TIMEOUT = 8  # 秒（连接+读取总体上限，超时视为 unknown 保留，防误杀）
+PROBE_WORKERS = 16  # 并发探测数
+# 方案二默认关闭：GitHub Actions 数据中心 IP 极易被上游当爬虫/代理，超时/403 率高，
+# 盲目探测会把大量「其实能放」的链接误判为死链。先上「方案一 URL 规则过滤」（零成本、零误判），
+# 方案二设为可手动开启：在 Actions 中设环境变量 LIVE_PROBE=1 才启用。
+LIVE_PROBE = os.environ.get("LIVE_PROBE") == "1"
+
+# GitHub Token（仅用于给 GitHub 系域名(raw/api/github.io)的抓取加 Bearer 鉴权，
+# 避免未登录限流、并让 Actions IP 更「像正常用户」）。绝不硬编码到代码，统一从环境变量读取。
+GH_TOKEN = (os.environ.get("GH_TOKEN") or "").strip() or None
+
+# 方案一：组播/内网代理地址——家庭普通网络基本放不出来，直接丢弃（零请求、零误判）。
+# 形态：udp://... / rtp://... / http(s)://host/udp/239.x.x.x:port / .../rtp/...
+_MULTICAST_RE = re.compile(r"(?i)(^(udp|rtp)://|(https?://[^/]+)?/(udp|rtp)(/|:))")
+# 方案一：可配置域名黑名单（小写后缀匹配）。先留空，后续按需追加已知死域/鉴权失效域。
+BLACKLIST_DOMAINS = [
+    # "example-dead-domain.com",
+]
+
+# 方案二：增量探测缓存（落在 generated/ 随仓库提交，跨次运行复用，降低 Actions IP 暴露）。
+PROBE_CACHE_FILE = os.path.join(GENERATED_DIR, ".probe_cache.json")
+PROBE_CACHE_TTL_DAYS = 7
 
 
 def rc4(key: bytes, data: bytes) -> bytes:
@@ -102,12 +149,18 @@ def decrypt_manifest(b64: str, key: str) -> dict:
 # ---------------------------------------------------------------------------
 # 抓取
 # ---------------------------------------------------------------------------
-def fetch_text(url: str) -> str:
+def fetch_text(url: str, timeout: int = None) -> str:
+    timeout = timeout or FETCH_TIMEOUT
     last_err = None
+    headers = {"User-Agent": FETCH_UA}
+    host = urllib.parse.urlparse(url).netloc.lower()
+    if GH_TOKEN and ("github.com" in host or "githubusercontent.com" in host
+                     or "github.io" in host):
+        headers["Authorization"] = f"Bearer {GH_TOKEN}"
     for attempt in range(MAX_RETRIES + 1):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": FETCH_UA})
-            with urllib.request.urlopen(req, timeout=FETCH_TIMEOUT) as resp:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 charset = resp.headers.get_content_charset() or "utf-8"
                 return resp.read().decode(charset, errors="replace")
         except Exception as e:  # noqa: BLE001
@@ -254,6 +307,251 @@ PARSERS = {
 
 
 # ---------------------------------------------------------------------------
+# 直播 txt 解析 / 过滤 / iptv-org 构建
+# ---------------------------------------------------------------------------
+# 频道元组：(group, name, url)
+def parse_live_txt(text: str):
+    """解析 #genre# txt 或 #EXTM3U，返回 [(group, name, url), ...]，保留顺序，去空。
+    与 App 端 TxtSubscribe 解析规则对齐，保证生成文件 App 能直接消费。"""
+    channels = []
+    cur_group = "未分组"
+    pending = None  # m3u 模式下暂存 (group, name)
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#EXTM3U"):
+            continue
+        if line.startswith("#EXTINF"):
+            name = re.search(r",(.+?)$", line)
+            name = name.group(1).strip() if name else "未命名"
+            grp = re.search(r'group-title="(.*?)"', line)
+            cur_group = grp.group(1).strip() if grp else cur_group
+            pending = (cur_group, name)
+            continue
+        if pending is not None:
+            # m3u 的 url 在 EXTINF 下一行
+            channels.append((pending[0], pending[1], line))
+            pending = None
+            continue
+        if "#genre#" in line:
+            parts = line.split(",", 1)
+            cur_group = parts[0].strip() or "未分组"
+            continue
+        # 普通行：name,url[#url2...]
+        parts = line.split(",", 1)
+        if len(parts) < 2:
+            continue
+        name = parts[0].strip()
+        for u in parts[1].split("#"):
+            u = u.strip()
+            if u and (u.startswith("http") or u.startswith("rtsp") or u.startswith("rtmp")):
+                channels.append((cur_group, name, u))
+    return channels
+
+
+def emit_live_txt(channels):
+    """把 [(group, name, url)] 写回 #genre# txt（App TxtSubscribe.parseTxt 可解析）。"""
+    lines = []
+    last_group = None
+    for grp, name, url in channels:
+        if grp != last_group:
+            lines.append(f"{grp},#genre#")
+            last_group = grp
+        lines.append(f"{name},{url}")
+    return "\n".join(lines) + "\n"
+
+
+def url_is_multicast(url: str) -> bool:
+    return bool(_MULTICAST_RE.search(url or ""))
+
+
+def url_blacklisted(url: str) -> bool:
+    host = urllib.parse.urlparse(url).netloc.lower()
+    for d in BLACKLIST_DOMAINS:
+        if host == d or host.endswith("." + d):
+            return True
+    return False
+
+
+def schema1_drop(url: str) -> bool:
+    """方案一：确定性可丢规则（组播/黑名单）。返回 True 表示丢弃。"""
+    return url_is_multicast(url) or url_blacklisted(url)
+
+
+def probe_url(url: str) -> str:
+    """方案二：探测单个 url。返回 'dead' / 'alive' / 'unknown'。
+    仅 'dead'（连接拒绝 / DNS 失败 / 404 / 410）才删；超时/403/401/5xx 返回 unknown 保留，防误杀。"""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": PROBE_UA}, method="GET")
+        req.add_header("Range", "bytes=0-1023")
+        with urllib.request.urlopen(req, timeout=PROBE_TIMEOUT) as resp:
+            code = resp.status
+            if code in (404, 410):
+                return "dead"
+            return "alive"  # 200/206/3xx 都算活着；403/401/5xx 也保留（防反爬误杀）
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 410):
+            return "dead"
+        return "unknown"
+    except (urllib.error.URLError, socket.timeout, ConnectionError, OSError):
+        # DNS 解析失败 / 连接被拒 / 网络不可达 → 确定性死链
+        return "dead"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def load_probe_cache() -> dict:
+    try:
+        with open(PROBE_CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def save_probe_cache(cache: dict):
+    try:
+        os.makedirs(os.path.dirname(PROBE_CACHE_FILE), exist_ok=True)
+        with open(PROBE_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except Exception as e:  # noqa: BLE001
+        print(f"  [WARN] write probe cache failed: {e}", file=sys.stderr)
+
+
+def filter_live_channels(channels, enable_probe: bool):
+    """方案一必做（丢组播/黑名单）；方案二可选（HTTP 探测删死链，带增量缓存）。
+    返回 (filtered_channels, cache)。"""
+    seen = set()
+    kept = []
+    for grp, name, url in channels:
+        k = (grp, name, url)
+        if k in seen:
+            continue
+        seen.add(k)
+        if schema1_drop(url):
+            continue
+        kept.append((grp, name, url))
+
+    if not enable_probe:
+        return kept, load_probe_cache()
+
+    cache = load_probe_cache()
+    now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+    ttl = PROBE_CACHE_TTL_DAYS * 86400
+    urls = [u for _, _, u in kept]
+    results = {}
+
+    def _do(u):
+        c = cache.get(u)
+        if c and (now - c.get("t", 0)) < ttl:
+            return u, c.get("s", "unknown")
+        return u, probe_url(u)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=PROBE_WORKERS) as ex:
+        for u, s in ex.map(_do, urls):
+            results[u] = {"s": s, "t": int(now)}
+
+    out = []
+    dropped = 0
+    for grp, name, url in kept:
+        if results.get(url, "unknown") == "dead":
+            dropped += 1
+            continue
+        out.append((grp, name, url))
+    cache.update(results)
+    print(f"  [probe] 探测 {len(urls)} 条，删死链 {dropped} 条，保留 {len(out)} 条")
+    return out, cache
+
+
+def build_filtered_live(src: dict, text: str, out_dir: str):
+    """single_live 源：抓 txt → 解析 → 方案一/二过滤 → 写 generated/<name>.txt → 返回 live 条目。"""
+    channels = parse_live_txt(text)
+    if not channels:
+        return None, 0
+    before = len(channels)
+    filtered, cache = filter_live_channels(channels, enable_probe=LIVE_PROBE)
+    if not filtered:
+        # 全被过滤掉则不要发布空订阅（否则 App 拉到一个空列表）
+        print(f"  [WARN] {src['id']} 过滤后为空，跳过发布（不产出空订阅）")
+        return None, 0
+    save_probe_cache(cache)
+    os.makedirs(out_dir, exist_ok=True)
+    fname = src.get("generated_name", src["id"] + ".txt")
+    with open(os.path.join(out_dir, fname), "w", encoding="utf-8") as f:
+        f.write(emit_live_txt(filtered))
+    suffix = "（已筛·探测)" if LIVE_PROBE else "（已筛）"
+    print(f"  [filter] {src['id']}: {before} → {len(filtered)} 条（丢 {before - len(filtered)}）")
+    return {
+        "name": (src.get("name") or _clean_name(src.get("url"))) + suffix,
+        "url": GENERATED_BASE_URL + fname,
+        "type": "live",
+    }, len(filtered)
+
+
+# iptv-org 国家码 → 中文名（常用），其余回退国家码
+_ISO_CN = {
+    "CN": "中国", "HK": "中国香港", "TW": "中国台湾", "MO": "中国澳门",
+    "US": "美国", "GB": "英国", "JP": "日本", "KR": "韩国", "SG": "新加坡",
+    "RU": "俄罗斯", "DE": "德国", "FR": "法国", "CA": "加拿大", "AU": "澳大利亚",
+    "IN": "印度", "BR": "巴西", "IT": "意大利", "ES": "西班牙", "TH": "泰国",
+    "MY": "马来西亚", "VN": "越南", "PH": "菲律宾", "ID": "印尼", "PK": "巴基斯坦",
+    "TR": "土耳其", "SA": "沙特", "AE": "阿联酋", "EG": "埃及", "ZA": "南非",
+    "MX": "墨西哥", "NL": "荷兰", "PT": "葡萄牙", "PL": "波兰", "UA": "乌克兰",
+}
+
+
+def build_iptv_org(out_dir: str):
+    """iptv-org/api：抓 channels.json + streams.json，取 status=online 的流，
+    按国家分组，生成 generated/iptv-org.txt（#genre#）。返回 (live 条目, 频道数)。
+    注：直接复用 iptv-org 官方自检 status（online），不另行探测，避免 Actions IP 误判。"""
+    try:
+        ch_text = fetch_text("https://iptv-org.github.io/api/channels.json", timeout=90)
+        st_text = fetch_text("https://iptv-org.github.io/api/streams.json", timeout=90)
+        channels = json.loads(ch_text)
+        streams = json.loads(st_text)
+    except Exception as e:  # noqa: BLE001
+        print(f"  [WARN] iptv-org fetch failed: {e}", file=sys.stderr)
+        return None, 0
+
+    by_id = {c.get("id"): c for c in channels}
+    out = []
+    seen = set()
+    for s in streams:
+        if s.get("status") != "online":
+            continue
+        url = normalize_url(s.get("url", ""))
+        if not url:
+            continue
+        cid = s.get("channel")
+        ch = by_id.get(cid)
+        if not ch:
+            continue
+        name = (ch.get("name") or cid).strip()
+        if not name:
+            continue
+        countries = ch.get("countries") or []
+        code = countries[0] if countries else "其他"
+        group = _ISO_CN.get(code, code) if code != "其他" else "其他"
+        key = (group, name, url)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((group, name, url))
+
+    if not out:
+        return None, 0
+    os.makedirs(out_dir, exist_ok=True)
+    fname = "iptv-org.txt"
+    with open(os.path.join(out_dir, fname), "w", encoding="utf-8") as f:
+        f.write(emit_live_txt(out))
+    entry = {
+        "name": f"iptv-org 全球直播（{len(out)} 台·官方online）",
+        "url": GENERATED_BASE_URL + fname,
+        "type": "live",
+    }
+    return entry, len(out)
+
+
+
+# ---------------------------------------------------------------------------
 # 上游源定义（顺序即「从上到下」的展示顺序；laoma2053 为已校验骨干）
 # ---------------------------------------------------------------------------
 SOURCES = [
@@ -268,12 +566,21 @@ SOURCES = [
         "name": "hkbiang/TV 直播源（每日校验）",
         "url": "https://raw.githubusercontent.com/hkbiang/TV/master/result.txt",
         "parser": "single_live",
+        "filter_live": True,
+        "generated_name": "hkbiang.txt",
     },
     {
         "id": "sdyby2006_live",
         "name": "sdyby2006/TV 直播源（每 12h 校验）",
         "url": "https://raw.githubusercontent.com/sdyby2006/TV/master/result.txt",
         "parser": "single_live",
+        "filter_live": True,
+        "generated_name": "sdyby2006.txt",
+    },
+    {
+        "id": "iptv_org",
+        "name": "iptv-org 全球直播源",
+        # 无 url：build_iptv_org 自行抓取 channels.json + streams.json 并生成 generated/iptv-org.txt
     },
     {
         "id": "to4kacc",
@@ -328,6 +635,31 @@ def build() -> dict:
             if entry:
                 collected.append((sid, entry))
             continue
+
+        # iptv-org：自行抓取并生成 generated/iptv-org.txt，产出单个 live 条目
+        if sid == "iptv_org":
+            try:
+                entry, n = build_iptv_org(GENERATED_DIR)
+            except Exception as e:  # noqa: BLE001
+                print(f"  [WARN] source 'iptv_org' failed: {e}", file=sys.stderr)
+                entry, n = None, 0
+            per_source[sid] = n
+            if entry:
+                collected.append((sid, entry))
+            continue
+
+        # single_live + filter_live：抓取 txt → 方案一/二过滤 → 生成 generated 文件后发布
+        if src.get("parser") == "single_live" and src.get("filter_live"):
+            try:
+                entry, n = build_filtered_live(src, text, GENERATED_DIR)
+            except Exception as e:  # noqa: BLE001
+                print(f"  [WARN] source '{sid}' failed: {e}", file=sys.stderr)
+                entry, n = None, 0
+            per_source[sid] = n
+            if entry:
+                collected.append((sid, entry))
+            continue
+
         try:
             entries = PARSERS[src["parser"]](src, text)
         except Exception as e:  # noqa: BLE001
@@ -396,6 +728,9 @@ def main():
     print(f"  订阅仓库构建完成")
     print(f"  总条目: {manifest['count']}  (type: {type_count})")
     print(f"  RC4 密钥: {'默认(与App一致)' if RC4_KEY == DEFAULT_RC4_KEY else '环境变量覆盖'}")
+    print(f"  直播筛选: 方案一(URL规则)=开"
+          f"  方案二(HTTP探测)={'开(LIVE_PROBE=1)' if LIVE_PROBE else '关(默认)'}"
+          f"  GitHub鉴权={'有' if GH_TOKEN else '无'}")
     print("  各源采集数:")
     for sid, n in per_source.items():
         print(f"    - {sid}: {n}")
