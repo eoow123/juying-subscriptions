@@ -1,22 +1,12 @@
 {
   "version": 1,
-  "updated_at": "2026-08-19T02:00:18Z",
-  "count": 22,
+  "updated_at": "2026-08-19T15:50:40Z",
+  "count": 11,
   "items": [
     {
-      "name": "国内直播(281台 2026-8-19)",
+      "name": "国内直播(279台 2026-8-19)",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv_cn_filtered.txt",
       "type": "live"
-    },
-    {
-      "name": "饭太硬",
-      "url": "http://www.饭太硬.net/tv",
-      "type": "config"
-    },
-    {
-      "name": "肥猫",
-      "url": "http://肥猫.net/",
-      "type": "config"
     },
     {
       "name": "老刘备",
@@ -26,21 +16,6 @@
     {
       "name": "小马",
       "url": "https://szyyds.cn/tv/x.json",
-      "type": "config"
-    },
-    {
-      "name": "摸鱼儿",
-      "url": "http://摸鱼儿.cc",
-      "type": "config"
-    },
-    {
-      "name": "王二小",
-      "url": "http://new.王二小放牛娃.top",
-      "type": "config"
-    },
-    {
-      "name": "小盒子4K",
-      "url": "http://xhztv.top/4k.json",
       "type": "config"
     },
     {
@@ -54,43 +29,13 @@
       "type": "config"
     },
     {
-      "name": "嗷呜",
-      "url": "http://itv666.cc/aowu/config.webp",
-      "type": "config"
-    },
-    {
       "name": "无名",
       "url": "https://6800.kstore.vip/fish.json",
       "type": "config"
     },
     {
-      "name": "小盒子多仓",
-      "url": "http://xhztv.top/dc",
-      "type": "config"
-    },
-    {
-      "name": "拾光多仓",
-      "url": "http://xmbjm.fh4u.org/dc.txt",
-      "type": "config"
-    },
-    {
-      "name": "挺好分享多仓",
-      "url": "http://ztha.top/TVBox/GYCK.json",
-      "type": "config"
-    },
-    {
-      "name": "小盒子",
-      "url": "https://www.xhztv.pro/",
-      "type": "config"
-    },
-    {
       "name": "to4kacc 多仓（27 站·资源网直连）",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/to4kacc-config.json",
-      "type": "config"
-    },
-    {
-      "name": "jinenge 内置源（自动更新）",
-      "url": "https://raw.githubusercontent.com/jinenge/tvbox/master/tvbox.json",
       "type": "config"
     },
     {
