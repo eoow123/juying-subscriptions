@@ -194,6 +194,51 @@ def fetch_text(url: str, timeout: int = None) -> str:
     raise RuntimeError(f"fetch failed after {MAX_RETRIES + 1} tries: {url} -> {last_err}")
 
 
+def _idna_url(url: str) -> str:
+    """中文/非 ASCII 域名（IDN）转 punycode，否则 urllib 报 latin-1 无法编码。"""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = parts.hostname or ""
+        new_host = host
+        try:
+            new_host = host.encode("idna").decode("ascii")
+        except Exception:  # noqa: BLE001
+            new_host = host
+        if new_host != host:
+            # 保留用户信息/端口：urlsplit 的 netloc 含 userinfo@host:port，重建时还原
+            netloc = parts.netloc
+            if "@" in netloc:
+                userinfo = netloc.rsplit("@", 1)[0] + "@"
+            else:
+                userinfo = ""
+            port = ""
+            try:
+                if ":" in netloc.rsplit("@", 1)[-1]:
+                    port = ":" + netloc.rsplit("@", 1)[-1].rsplit(":", 1)[1]
+            except Exception:  # noqa: BLE001
+                port = ""
+            url = urllib.parse.urlunsplit(
+                (parts.scheme, userinfo + new_host + port, parts.path, parts.query, parts.fragment))
+    except Exception:  # noqa: BLE001
+        pass
+    return url
+
+
+def _fetch_status_text(url: str, timeout: int = 30):
+    """拉取并返回 (http_status, text)；跟随重定向；异常上抛由调用方 fail-open。
+    中文域名先转 punycode。"""
+    headers = {"User-Agent": FETCH_UA}
+    host = urllib.parse.urlparse(url).netloc.lower()
+    if GH_TOKEN and ("github.com" in host or "githubusercontent.com" in host
+                     or "github.io" in host):
+        headers["Authorization"] = f"Bearer {GH_TOKEN}"
+    req = urllib.request.Request(_idna_url(url), headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        charset = resp.headers.get_content_charset() or "utf-8"
+        body = resp.read()
+        return resp.status, body.decode(charset, errors="replace")
+
+
 # ---------------------------------------------------------------------------
 # URL 规范化 / 去重键
 # ---------------------------------------------------------------------------
@@ -835,7 +880,7 @@ def filter_unreachable_jar(items, dry_run=False):
             out.append(e)
             continue
         try:
-            text = fetch_text(url, timeout=30)
+            text = fetch_text(_idna_url(url), timeout=30)
         except Exception as ex:  # noqa: BLE001
             print(f"  [JAR-FILTER] config fetch failed, keep: {e.get('name')}: {ex}",
                   file=sys.stderr)
@@ -865,6 +910,73 @@ def filter_unreachable_jar(items, dry_run=False):
                       file=sys.stderr)
                 continue
         out.append(e)
+    return out, dropped
+
+
+# ---------------------------------------------------------------------------
+# config 条目内容校验（CONTENT-FILTER）
+# ---------------------------------------------------------------------------
+def _looks_like_tvbox_config(text: str) -> bool:
+    """判断拉取内容是否为合法 TVBox 配置：JSON 可解析且含 sites 或 lives 数组。
+    返回 False 表示 200 但内容确定非配置（反爬图/HTML/加密乱码/空壳）。"""
+    if not text or not text.strip():
+        return False
+    s = text.strip()
+    if s.startswith("\ufeff"):
+        s = s[1:]
+    s = re.sub(r"(?m)^\s*//.*$", "", s).strip()
+    if not (s.startswith("{") or s.startswith("[")):
+        return False
+    try:
+        data = json.loads(s)
+    except Exception:  # noqa: BLE001
+        return False
+    if isinstance(data, dict):
+        if "sites" in data or "lives" in data or "spider" in data:
+            return True
+    return False
+
+
+def validate_config_content(items, dry_run=False):
+    """config 条目内容校验：拉取 → JSON 解析 → 判断 sites/lives/spider 字段
+    （与 App 端添加订阅时的校验对齐）。
+
+    剔除（确定性无效）：HTTP 404/410；200 但内容非 TVBox 配置（反爬图/HTML/加密乱码）。
+    保留（fail-open）：超时/SSL/403/5xx/连接异常 —— 可能临时故障，避免误杀。
+    """
+    out = []
+    dropped = []
+    for e in items:
+        if e.get("type") != "config":
+            out.append(e)
+            continue
+        url = e.get("url", "")
+        if not url:
+            out.append(e)
+            continue
+        try:
+            status, text = _fetch_status_text(url, timeout=30)
+        except Exception as ex:  # noqa: BLE001
+            print(f"  [CONTENT-FILTER] fetch fail, keep: {e.get('name')}: {ex}", file=sys.stderr)
+            out.append(e)
+            continue
+        if status in (404, 410):
+            dropped.append((e.get("name"), f"HTTP {status}"))
+            continue
+        if status != 200:
+            print(f"  [CONTENT-FILTER] HTTP {status}, keep: {e.get('name')}", file=sys.stderr)
+            out.append(e)
+            continue
+        if _looks_like_tvbox_config(text):
+            out.append(e)
+            print(f"  [CONTENT-FILTER] OK   {e.get('name')} ({len(text)}B)")
+        else:
+            dropped.append((e.get("name"), "200 但内容非 TVBox 配置(无 sites/lives/spider)"))
+            if dry_run:
+                out.append(e)  # dry-run：只记录不剔除
+    if dropped and not dry_run:
+        names = ", ".join(f"{n}({r})" for n, r in dropped)
+        print(f"  [CONTENT-FILTER] 剔除 {len(dropped)} 个无效 config 源: {names}", file=sys.stderr)
     return out, dropped
 
 
@@ -953,6 +1065,17 @@ def build() -> dict:
         if dropped:
             names = ", ".join(n for n, _ in dropped)
             print(f"  [JAR-FILTER] 共剔除 {len(dropped)} 个源（确定性 jar 死链）：{names}",
+                  file=sys.stderr)
+
+    # config 条目内容校验（CONTENT_FILTER）：拉取 → JSON 解析 → 判断 sites/lives/spider，
+    # 与 App 端添加订阅时校验对齐。200 但内容非 TVBox 配置（反爬图/HTML/加密乱码/404/410）
+    # 确定性剔除；超时/SSL/5xx 等不确定 fail-open 保留。默认开启，CONTENT_FILTER=0 关闭。
+    if os.environ.get("CONTENT_FILTER", "1") == "1":
+        dry = os.environ.get("CONTENT_FILTER_DRYRUN", "0") == "1"
+        items, dropped = validate_config_content(items, dry_run=dry)
+        if dropped:
+            names = ", ".join(n for n, _ in dropped)
+            print(f"  [CONTENT-FILTER] 共剔除 {len(dropped)} 个无效 config 源：{names}",
                   file=sys.stderr)
 
     # 统计 type
