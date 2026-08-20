@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-08-20 17:38:53",
-  "zyz": 73,
+  "updated_at": "2026-08-20 23:46:06",
+  "zyz": 0,
   "upstream": 109,
-  "merged": 143,
-  "after_nsfw_filter": 120,
-  "alive": 32,
-  "published_sites": 32
+  "merged": 102,
+  "after_nsfw_filter": 89,
+  "alive": 25,
+  "published_sites": 25
 }

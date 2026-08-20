@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "updated_at": "2026-08-20T17:39:50Z",
-  "count": 24,
+  "updated_at": "2026-08-20T23:49:05Z",
+  "count": 33,
   "items": [
     {
-      "name": "国内直播(281台 2026-8-21)",
+      "name": "国内直播(268台 2026-8-21)",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv_cn_filtered.txt",
       "type": "live"
     },
@@ -119,8 +119,53 @@
       "type": "config"
     },
     {
+      "name": "动漫城",
+      "url": "https://www.yingm.cc/dm/dm.json",
+      "type": "config"
+    },
+    {
+      "name": "HG影视",
+      "url": "https://api.hgyx.vip/hgyx.json",
+      "type": "config"
+    },
+    {
+      "name": "驸马",
+      "url": "http://fmys.top/fmys.json",
+      "type": "config"
+    },
+    {
+      "name": "游魂多仓",
+      "url": "https://www.iyouhun.com/tv/dc",
+      "type": "config"
+    },
+    {
+      "name": "高天流云",
+      "url": "https://raw.githubusercontent.com/gaotianliuyun/gao/master/js.json",
+      "type": "config"
+    },
+    {
+      "name": "香雅情",
+      "url": "https://raw.githubusercontent.com/xyq254245/xyqonlinerule/main/XYQTVBox.json",
+      "type": "config"
+    },
+    {
       "name": "大嘴精选直播（已筛）",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/bigmouth-ok.txt",
+      "type": "live"
+    },
+    {
+      "name": "YY轮播（已筛）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/yy-lunbo.txt",
+      "type": "live"
+    },
+    {
+      "name": "哔哩哔哩直播（已筛）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/bili-live.txt",
+      "type": "live"
+    },
+    {
+      "name": "直播电视IPv4（已筛）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/zbds-iptv4.txt",
       "type": "live"
     }
   ]

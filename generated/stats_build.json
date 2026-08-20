@@ -1,16 +1,21 @@
 {
-  "updated_at": "2026-08-20T17:39:50Z",
-  "total_items": 24,
+  "updated_at": "2026-08-20T23:49:05Z",
+  "total_items": 33,
   "type_count": {
-    "live": 2,
-    "config": 22
+    "live": 5,
+    "config": 28
   },
   "per_source": {
     "laoma2053": 15,
     "to4kacc": 27,
     "jinenge": 1,
-    "curated": 13,
+    "curated": 20,
     "bigmouth_live": 746,
-    "cn_live": 281
+    "yy_lunbo_live": 474,
+    "bili_live": 131,
+    "huya_live": 0,
+    "douyu_live": 0,
+    "zbds_iptv4_live": 836,
+    "cn_live": 268
   }
 }
