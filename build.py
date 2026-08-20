@@ -759,7 +759,26 @@ SOURCES = [
             {"name": "小盒子多仓", "url": "http://xhztv.top/dc", "type": "config"},
             {"name": "拾光多仓", "url": "http://xmbjm.fh4u.org/dc.txt", "type": "config"},
             {"name": "挺好分享多仓", "url": "http://ztha.top/TVBox/GYCK.json", "type": "config"},
+            # ↓↓↓ 2026-08-21 用户指定「前期采集资源」（config 订阅，供订阅仓库一键添加）
+            # qist/tvbox：README 首推「0821.json 大而全」，用 CF Pages 镜像（国内直连可达，raw 常被墙）
+            {"name": "qist 大全(0821)", "url": "https://qist.wyfc.qzz.io/0821.json", "type": "config"},
+            # youhunwl/TVAPP：该仓库为 APK 分发 + 配置索引站，无自有订阅 JSON；
+            # 取其 README 索引中稳定的「有闪 XC」大全配置（jsDelivr 镜像）作为代表
+            {"name": "TVAPP·有闪XC", "url": "https://cdn.jsdelivr.net/gh/yoursmile66/TVBox@main/XC.json", "type": "config"},
+            # dao.fongmi.eu.org：FongMi 导航站，取其收录的合法 TVBox 配置 FongMi.json
+            {"name": "FongMi 配置", "url": "https://www.252035.xyz/z/FongMi.json", "type": "config"},
+            # anaer/Meow：meow.json 单仓配置（jsDelivr 镜像，国内可达）
+            {"name": "Meow 猫配置", "url": "https://cdn.jsdelivr.net/gh/anaer/Meow@main/meow.json", "type": "config"},
         ],
+    },
+    # big-mouth-cn/tv 的 iptv-ok.m3u：用户指定单独做一个直播订阅（走 filter_live 方案一过滤组播）
+    {
+        "id": "bigmouth_live",
+        "name": "大嘴精选直播",
+        "url": "https://gh-proxy.com/https://raw.githubusercontent.com/big-mouth-cn/tv/main/iptv-ok.m3u",
+        "parser": "single_live",
+        "filter_live": True,
+        "generated_name": "bigmouth-ok.txt",
     },
 ]
 
@@ -938,11 +957,12 @@ def _looks_like_tvbox_config(text: str) -> bool:
 
 
 def validate_config_content(items, dry_run=False):
-    """config 条目内容校验：拉取 → JSON 解析 → 判断 sites/lives/spider 字段
-    （与 App 端添加订阅时的校验对齐）。
+    """config 条目链接可达性校验（用户要求：云服务只判断「订阅链接是否可达 + jar 是否可达」，
+    不做内容格式判断——加密订阅/代码围栏/单地址格式在服务端判不了，App 端 FindResult 能解密，
+    内容校验会误杀大量「设备上可用」的源）。
 
-    剔除（确定性无效）：HTTP 404/410；200 但内容非 TVBox 配置（反爬图/HTML/加密乱码）。
-    保留（fail-open）：超时/SSL/403/5xx/连接异常 —— 可能临时故障，避免误杀。
+    剔除（确定性无效）：HTTP 404/410（链接死）。
+    保留（fail-open）：超时/SSL/403/5xx/连接异常；200 无论内容格式一律保留。
     """
     out = []
     dropped = []
@@ -955,7 +975,7 @@ def validate_config_content(items, dry_run=False):
             out.append(e)
             continue
         try:
-            status, text = _fetch_status_text(url, timeout=30)
+            status, _text = _fetch_status_text(url, timeout=30)
         except Exception as ex:  # noqa: BLE001
             print(f"  [CONTENT-FILTER] fetch fail, keep: {e.get('name')}: {ex}", file=sys.stderr)
             out.append(e)
@@ -963,20 +983,12 @@ def validate_config_content(items, dry_run=False):
         if status in (404, 410):
             dropped.append((e.get("name"), f"HTTP {status}"))
             continue
-        if status != 200:
-            print(f"  [CONTENT-FILTER] HTTP {status}, keep: {e.get('name')}", file=sys.stderr)
-            out.append(e)
-            continue
-        if _looks_like_tvbox_config(text):
-            out.append(e)
-            print(f"  [CONTENT-FILTER] OK   {e.get('name')} ({len(text)}B)")
-        else:
-            dropped.append((e.get("name"), "200 但内容非 TVBox 配置(无 sites/lives/spider)"))
-            if dry_run:
-                out.append(e)  # dry-run：只记录不剔除
+        # 200 即视为链接可达，保留（不再校验内容是否为 TVBox 配置）
+        out.append(e)
+        print(f"  [CONTENT-FILTER] OK(link) {e.get('name')} (HTTP {status})")
     if dropped and not dry_run:
         names = ", ".join(f"{n}({r})" for n, r in dropped)
-        print(f"  [CONTENT-FILTER] 剔除 {len(dropped)} 个无效 config 源: {names}", file=sys.stderr)
+        print(f"  [CONTENT-FILTER] 剔除 {len(dropped)} 个死链 config 源: {names}", file=sys.stderr)
     return out, dropped
 
 
@@ -1136,6 +1148,20 @@ def main():
     print(f"  明文: {plain_path}")
     print(f"  blob: {blob_path}")
     print("=" * 60)
+
+    # 写构建统计（供 workflow 邮件通知步骤读取）
+    try:
+        os.makedirs(GENERATED_DIR, exist_ok=True)
+        stats = {
+            "updated_at": manifest["updated_at"],
+            "total_items": manifest["count"],
+            "type_count": type_count,
+            "per_source": per_source,
+        }
+        with open(os.path.join(GENERATED_DIR, "stats_build.json"), "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+    except Exception as e:  # noqa: BLE001
+        print(f"  [WARN] write stats_build.json failed: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

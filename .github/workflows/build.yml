@@ -8,6 +8,8 @@ on:
   push:
     paths:
       - "build.py"
+      - "build_sources.py"
+      - "notify_mail.py"
       - ".github/workflows/build.yml"
 
 permissions:
@@ -48,11 +50,23 @@ jobs:
           LIVE_PROBE: ${{ vars.LIVE_PROBE }} # 可选：仓库变量设为 1 才开启「方案二 HTTP 探测」；默认关（先上方案一）
         run: python build.py --out dist
 
+      - name: Send collection-status email
+        # 读取 generated/stats_*.json，把「采集前→过滤后」的数字发到用户邮箱，监控软件工作状态。
+        # 未配置 MAIL_USER/MAIL_PASS 时脚本自动跳过发送、不阻断构建。
+        env:
+          MAIL_TO: ${{ vars.MAIL_TO }}          # 收件邮箱（留空默认 1361916124@qq.com）
+          MAIL_SMTP_HOST: ${{ vars.MAIL_SMTP_HOST }}  # 留空默认 smtp.qq.com
+          MAIL_SMTP_PORT: ${{ vars.MAIL_SMTP_PORT }}  # 留空默认 465
+          MAIL_USER: ${{ secrets.MAIL_USER }}   # 发件邮箱账号（必填才发送）
+          MAIL_PASS: ${{ secrets.MAIL_PASS }}   # 发件邮箱 SMTP 授权码（必填才发送）
+          MAIL_FROM: ${{ vars.MAIL_FROM }}      # 发件显示地址（留空 = MAIL_USER）
+        run: python notify_mail.py
+
       - name: Commit & push rebuilt blob
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dist/repo.b64 dist/repo.json generated
+          git add dist/repo.b64 dist/repo.json generated STATUS.md
           if git diff --cached --quiet; then
             echo "no changes, skip commit"
           else

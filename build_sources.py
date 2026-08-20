@@ -272,23 +272,15 @@ def find_vod_array(obj):
 
 
 def probe_one(entry):
-    """复刻 App probeAliveStrict：浏览返回真实片源 + 搜索词命中。返回 (api, alive, reason)。"""
+    """采集站存活判定：**只用搜索关键词方式**（用户要求，2026-08-21）。
+    对每个 PROBE_TERM 发 ac=list&wd=<词> 搜索，任一词返回的片名真正包含该词即判活。
+    去掉了原「先浏览 ac=list 判空列表」的前置判定——只保留搜索关键词命中一种方式。
+    返回 (api, alive, reason)。"""
     api = entry["api"].strip()
     if not api.startswith("http"):
         return (api, False, "非http")
     sep = "&" if "?" in api else "?"
-    # 1) 浏览
-    txt = http_get(api + sep + "ac=list&pg=1", TIMEOUT)
-    if not txt:
-        return (api, False, "浏览失败")
-    try:
-        obj = json.loads(strip_jsonc(txt))
-    except Exception:
-        return (api, False, "浏览非JSON")
-    arr = find_vod_array(obj)
-    if not arr:
-        return (api, False, "浏览空列表")
-    # 2) 搜索词命中（复刻 App：片名必须真正包含词）
+    # 只用搜索关键词命中判定（片名必须真正包含搜索词）
     for term in PROBE_TERMS:
         try:
             q = urllib.parse.quote(term)
@@ -334,21 +326,19 @@ def main():
             merged[h] = e
     print(f"合并去重后: {len(merged)} 个")
 
-    print("=== 2. 过滤（NSFW/垃圾/0资源） ===")
+    print("=== 2. 过滤（仅 NSFW 安全红线；存活判定统一交给搜索关键词探测） ===")
+    # 用户要求（2026-08-21）：采集站过滤只用「搜索关键词」一种方式，其它判定都不要。
+    # 故删除原「0 资源判死」前置过滤（那是 ziyuanzu totalResources 字段判定，属另一种方式）。
+    # NSFW 属内容合规红线（非质量过滤），保留。
     clean = []
     for h, e in merged.items():
         if is_nsfw(e.get("name", ""), e["api"]):
             print(f"  [剔除-NSFW] {e.get('name')} {e['api']}")
             continue
-        # 仅对 ziyuanzu 来源应用「0 资源判死」：其 totalResources 是平台实测值，0=假活；
-        # 上游/自建来源 totalResources 未知(默认0)，不能按 0 判死，交给探测决定。
-        if e.get("src") == "zyz" and int(e.get("totalResources", 0) or 0) == 0:
-            print(f"  [剔除-0资源] {e.get('name')} {e['api']}")
-            continue
         clean.append(e)
     print(f"过滤后: {len(clean)} 个")
 
-    print("=== 3. 并发探测（浏览+搜索，复刻 App 逻辑） ===")
+    print("=== 3. 并发探测（仅搜索关键词命中判活） ===")
     alive = []
     with cf.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
         futs = {ex.submit(probe_one, e): e for e in clean}
@@ -391,6 +381,23 @@ def main():
     with open(os.path.join(out_dir, "sources.txt"), "w", encoding="utf-8") as f:
         for s in sites:
             f.write(f"{s['name']}|{s['api']}\n")
+
+    # 写采集统计（供邮件通知步骤读取）：采集前(合并去重后) / 过滤后(NSFW) / 存活(搜索命中)
+    stats = {
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "zyz": len(zyz),
+        "upstream": len(up),
+        "merged": len(merged),
+        "after_nsfw_filter": len(clean),
+        "alive": len(alive),
+        "published_sites": len(sites),
+    }
+    try:
+        with open(os.path.join(out_dir, "stats_sources.json"), "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+    except Exception as ex:
+        print("[WARN] 写 stats_sources.json 失败:", ex)
+
     print(f"\n=== 完成: {out_path} ({len(sites)} 个干净采集站) ===")
     return 0 if sites else 1
 
