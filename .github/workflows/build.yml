@@ -33,6 +33,14 @@ jobs:
           LIVE_PROBE: ${{ vars.LIVE_PROBE }}
         run: python rt_sync.py --probe http --output iptv_cn_filtered.txt --github-actions --repo-path .
 
+      - name: Generate clean spider-source subscription (build_sources)
+        # 服务端汇总 ziyuanzu.com 当日检测 + 自建采集位置，过滤(NSFW/0资源) + 并发探测(浏览+搜索关键词)，
+        # 生成 generated/sources.json 供 App 内置直接消费（替换 App 本地逐站检测，点击更新影视源秒级完成）。
+        # 传 GH_TOKEN：上游 GitHub 订阅抓取加 Bearer 鉴权避免限流。
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: python build_sources.py
+
       - name: Build encrypted blob
         env:
           RC4_KEY: ${{ secrets.RC4_KEY }}   # 留空则复用 App 端默认密钥（与 Rc4Util.KEY 一致）
