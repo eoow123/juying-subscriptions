@@ -1,0 +1,16 @@
+{
+  "updated_at": "2026-08-20T17:39:50Z",
+  "total_items": 24,
+  "type_count": {
+    "live": 2,
+    "config": 22
+  },
+  "per_source": {
+    "laoma2053": 15,
+    "to4kacc": 27,
+    "jinenge": 1,
+    "curated": 13,
+    "bigmouth_live": 746,
+    "cn_live": 281
+  }
+}

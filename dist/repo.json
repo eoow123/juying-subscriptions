@@ -1,12 +1,22 @@
 {
   "version": 1,
-  "updated_at": "2026-08-20T06:16:22Z",
-  "count": 12,
+  "updated_at": "2026-08-20T17:39:50Z",
+  "count": 24,
   "items": [
     {
-      "name": "国内直播(281台 2026-8-20)",
+      "name": "国内直播(281台 2026-8-21)",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv_cn_filtered.txt",
       "type": "live"
+    },
+    {
+      "name": "饭太硬",
+      "url": "http://www.饭太硬.net/tv",
+      "type": "config"
+    },
+    {
+      "name": "肥猫",
+      "url": "http://肥猫.net/",
+      "type": "config"
     },
     {
       "name": "老刘备",
@@ -19,8 +29,8 @@
       "type": "config"
     },
     {
-      "name": "摸鱼儿",
-      "url": "http://摸鱼儿.cc",
+      "name": "小盒子4K",
+      "url": "http://xhztv.top/4k.json",
       "type": "config"
     },
     {
@@ -29,8 +39,8 @@
       "type": "config"
     },
     {
-      "name": "VOX",
-      "url": "http://rihou.cc:88/demo.php",
+      "name": "嗷呜",
+      "url": "http://itv666.cc/aowu/config.webp",
       "type": "config"
     },
     {
@@ -39,8 +49,33 @@
       "type": "config"
     },
     {
+      "name": "小盒子多仓",
+      "url": "http://xhztv.top/dc",
+      "type": "config"
+    },
+    {
+      "name": "拾光多仓",
+      "url": "http://xmbjm.fh4u.org/dc.txt",
+      "type": "config"
+    },
+    {
+      "name": "挺好分享多仓",
+      "url": "http://ztha.top/TVBox/GYCK.json",
+      "type": "config"
+    },
+    {
+      "name": "小盒子",
+      "url": "https://www.xhztv.pro/",
+      "type": "config"
+    },
+    {
       "name": "to4kacc 多仓（27 站·资源网直连）",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/to4kacc-config.json",
+      "type": "config"
+    },
+    {
+      "name": "jinenge 内置源（自动更新）",
+      "url": "https://raw.githubusercontent.com/jinenge/tvbox/master/tvbox.json",
       "type": "config"
     },
     {
@@ -62,6 +97,31 @@
       "name": "home.jundie top98",
       "url": "http://home.jundie.top:81/top98.json",
       "type": "config"
+    },
+    {
+      "name": "qist 大全(0821)",
+      "url": "https://qist.wyfc.qzz.io/0821.json",
+      "type": "config"
+    },
+    {
+      "name": "TVAPP·有闪XC",
+      "url": "https://cdn.jsdelivr.net/gh/yoursmile66/TVBox@main/XC.json",
+      "type": "config"
+    },
+    {
+      "name": "FongMi 配置",
+      "url": "https://www.252035.xyz/z/FongMi.json",
+      "type": "config"
+    },
+    {
+      "name": "Meow 猫配置",
+      "url": "https://cdn.jsdelivr.net/gh/anaer/Meow@main/meow.json",
+      "type": "config"
+    },
+    {
+      "name": "大嘴精选直播（已筛）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/bigmouth-ok.txt",
+      "type": "live"
     }
   ]
 }
