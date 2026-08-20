@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "updated_at": "2026-08-20T02:00:09Z",
-  "count": 11,
+  "updated_at": "2026-08-20T06:16:22Z",
+  "count": 12,
   "items": [
     {
-      "name": "国内直播(280台 2026-8-20)",
+      "name": "国内直播(281台 2026-8-20)",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv_cn_filtered.txt",
       "type": "live"
     },
@@ -16,6 +16,11 @@
     {
       "name": "小马",
       "url": "https://szyyds.cn/tv/x.json",
+      "type": "config"
+    },
+    {
+      "name": "摸鱼儿",
+      "url": "http://摸鱼儿.cc",
       "type": "config"
     },
     {
