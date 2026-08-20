@@ -769,6 +769,14 @@ SOURCES = [
             {"name": "FongMi 配置", "url": "https://www.252035.xyz/z/FongMi.json", "type": "config"},
             # anaer/Meow：meow.json 单仓配置（jsDelivr 镜像，国内可达）
             {"name": "Meow 猫配置", "url": "https://cdn.jsdelivr.net/gh/anaer/Meow@main/meow.json", "type": "config"},
+            # ↓↓↓ 2026-08-21 从 youhunwl/TVAPP README「接口源」区补充（均实测 HTTP 206 可达 / 或知名 raw 交 Actions 判活）
+            {"name": "王二小放牛娃(新)", "url": "https://9280.kstore.vip/newwex.json", "type": "config"},
+            {"name": "动漫城", "url": "https://www.yingm.cc/dm/dm.json", "type": "config"},
+            {"name": "HG影视", "url": "https://api.hgyx.vip/hgyx.json", "type": "config"},
+            {"name": "驸马", "url": "http://fmys.top/fmys.json", "type": "config"},
+            {"name": "游魂多仓", "url": "https://www.iyouhun.com/tv/dc", "type": "config"},
+            {"name": "高天流云", "url": "https://raw.githubusercontent.com/gaotianliuyun/gao/master/js.json", "type": "config"},
+            {"name": "香雅情", "url": "https://raw.githubusercontent.com/xyq254245/xyqonlinerule/main/XYQTVBox.json", "type": "config"},
         ],
     },
     # big-mouth-cn/tv 的 iptv-ok.m3u：用户指定单独做一个直播订阅（走 filter_live 方案一过滤组播）
@@ -779,6 +787,37 @@ SOURCES = [
         "parser": "single_live",
         "filter_live": True,
         "generated_name": "bigmouth-ok.txt",
+    },
+    # ↓↓↓ 2026-08-21 从 TVAPP README「直播源」区补充（gongdian.top 系实测 206 可达；zbds/freetv 本地被墙但 Actions 可达）
+    {
+        "id": "yy_lunbo_live",
+        "name": "YY轮播",
+        "url": "https://gongdian.top/tv/Mursor/yylunbo.m3u",
+        "parser": "single_live", "filter_live": True, "generated_name": "yy-lunbo.txt",
+    },
+    {
+        "id": "bili_live",
+        "name": "哔哩哔哩直播",
+        "url": "https://gongdian.top/tv/Mursor/bililive.m3u",
+        "parser": "single_live", "filter_live": True, "generated_name": "bili-live.txt",
+    },
+    {
+        "id": "huya_live",
+        "name": "虎牙一起看",
+        "url": "https://live.freetv.top/huyayqk.m3u",
+        "parser": "single_live", "filter_live": True, "generated_name": "huya-yqk.txt",
+    },
+    {
+        "id": "douyu_live",
+        "name": "斗鱼一起看",
+        "url": "https://live.freetv.top/douyuyqk.m3u",
+        "parser": "single_live", "filter_live": True, "generated_name": "douyu-yqk.txt",
+    },
+    {
+        "id": "zbds_iptv4_live",
+        "name": "直播电视IPv4",
+        "url": "https://live.zbds.top/tv/iptv4.txt",
+        "parser": "single_live", "filter_live": True, "generated_name": "zbds-iptv4.txt",
     },
 ]
 
