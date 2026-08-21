@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "updated_at": "2026-08-20T23:49:05Z",
-  "count": 33,
+  "updated_at": "2026-08-21T01:34:50Z",
+  "count": 32,
   "items": [
     {
-      "name": "国内直播(268台 2026-8-21)",
+      "name": "国内直播(264台 2026-8-21)",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv_cn_filtered.txt",
       "type": "live"
     },
@@ -161,11 +161,6 @@
     {
       "name": "哔哩哔哩直播（已筛）",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/bili-live.txt",
-      "type": "live"
-    },
-    {
-      "name": "直播电视IPv4（已筛）",
-      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/zbds-iptv4.txt",
       "type": "live"
     }
   ]

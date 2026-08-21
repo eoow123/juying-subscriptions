@@ -1,8 +1,8 @@
 {
-  "updated_at": "2026-08-20T23:49:05Z",
-  "total_items": 33,
+  "updated_at": "2026-08-21T01:34:50Z",
+  "total_items": 32,
   "type_count": {
-    "live": 5,
+    "live": 4,
     "config": 28
   },
   "per_source": {
@@ -13,9 +13,6 @@
     "bigmouth_live": 746,
     "yy_lunbo_live": 474,
     "bili_live": 131,
-    "huya_live": 0,
-    "douyu_live": 0,
-    "zbds_iptv4_live": 836,
-    "cn_live": 268
+    "cn_live": 264
   }
 }
