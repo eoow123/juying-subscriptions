@@ -1016,6 +1016,79 @@ def validate_config_content(items, dry_run=False):
 
 
 # ---------------------------------------------------------------------------
+# 影视订阅快照对照 + 差异补筛（用户要求 2026-08-21）
+# ---------------------------------------------------------------------------
+def _snapshot_reconcile_repo(items, out_dir):
+    """影视订阅（config 条目）快照对照 + 差异补筛。语义与 build_sources.py 的采集站快照
+    一致：结果永远 >= 上次成功快照。防止上游 README / 聚合 config 源某次「抓取失败」
+    导致本来可用的影视订阅整条消失（例如某个上游仓库当天 502/超时）。
+
+    做法：
+      1. 读上次 snapshot_repo.json（首跑无 → 直接以本次为准）。
+      2. 找「上次有、本次 items 里没有」的 config 条目（按 dedup_key 比对）。
+      3. 对这些缺失条目重新走一遍 JAR 可达 + 链接可达校验；仍可达的补回。
+         注意：本轮被 JAR-FILTER / CONTENT-FILTER 判死的条目，重校验仍死，不会补回，
+         自然淘汰——只补「因源抓取失败而根本没被采集到」的活条目。
+      4. 覆盖写回快照（补齐后的完整 config 列表），供下次对照。
+    只处理 type==config（影视订阅）；live 条目是本仓自产过滤文件，不纳入快照。
+    """
+    snap_path = os.path.join(out_dir, "snapshot_repo.json")
+    cur_keys = {dedup_key(e["url"]) for e in items
+                if e.get("type") == "config" and e.get("url")}
+
+    prev_sites = []
+    if os.path.exists(snap_path):
+        try:
+            with open(snap_path, "r", encoding="utf-8") as f:
+                prev = json.load(f)
+            prev_sites = prev.get("sites", []) if isinstance(prev, dict) else []
+        except Exception as ex:  # noqa: BLE001
+            print(f"  [快照] 读取 {snap_path} 失败（忽略）: {ex}", file=sys.stderr)
+
+    missing = []
+    for s in prev_sites:
+        url = (s.get("url") or "").strip()
+        if not url:
+            continue
+        if dedup_key(url) not in cur_keys:
+            missing.append({"name": s.get("name", ""), "url": url, "type": "config"})
+
+    recovered = 0
+    if missing:
+        print(f"  [快照] 上次影视订阅 {len(prev_sites)} 条，本次 {len(cur_keys)} 条；"
+              f"差异 {len(missing)} 条 → 重校验补筛", file=sys.stderr)
+        cand = missing
+        if os.environ.get("JAR_FILTER", "1") == "1":
+            cand, _ = filter_unreachable_jar(cand)
+        if os.environ.get("CONTENT_FILTER", "1") == "1":
+            cand, _ = validate_config_content(cand)
+        for e in cand:
+            e["src"] = "snapshot"
+            items.append(e)
+            recovered += 1
+            print(f"  [快照补回] {e.get('name')} {e.get('url')}", file=sys.stderr)
+        print(f"  [快照] 影视订阅补回 {recovered} 条，合计 config "
+              f"{sum(1 for e in items if e.get('type') == 'config')} 条", file=sys.stderr)
+    else:
+        print(f"  [快照] 影视订阅无差异或首次运行（上次 {len(prev_sites)} 条）",
+              file=sys.stderr)
+
+    try:
+        snap = {
+            "updated_at": datetime.datetime.now(datetime.timezone.utc)
+            .replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "count": sum(1 for e in items if e.get("type") == "config"),
+            "sites": [{"name": e.get("name", ""), "url": e["url"]}
+                      for e in items if e.get("type") == "config" and e.get("url")],
+        }
+        with open(snap_path, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, indent=2)
+    except Exception as ex:  # noqa: BLE001
+        print(f"  [快照] 写回 {snap_path} 失败: {ex}", file=sys.stderr)
+    return items
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 def build() -> dict:
@@ -1112,6 +1185,12 @@ def build() -> dict:
             names = ", ".join(n for n, _ in dropped)
             print(f"  [CONTENT-FILTER] 共剔除 {len(dropped)} 个无效 config 源：{names}",
                   file=sys.stderr)
+
+    # 快照对照 + 差异补筛（影视订阅，用户要求 2026-08-21）：结果永远 >= 上次快照。
+    # 放在 JAR/CONTENT 过滤之后——补回的条目也会经这两道校验，确保不补回死链。
+    # SNAPSHOT=0 关闭。
+    if os.environ.get("SNAPSHOT", "1") == "1":
+        items = _snapshot_reconcile_repo(items, GENERATED_DIR)
 
     # 统计 type
     type_count = {}

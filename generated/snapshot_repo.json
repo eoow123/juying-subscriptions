@@ -1,0 +1,118 @@
+{
+  "updated_at": "2026-08-21T01:38:15Z",
+  "count": 28,
+  "sites": [
+    {
+      "name": "饭太硬",
+      "url": "http://www.饭太硬.net/tv"
+    },
+    {
+      "name": "肥猫",
+      "url": "http://肥猫.net/"
+    },
+    {
+      "name": "老刘备",
+      "url": "https://raw.liucn.cc/box/m.json"
+    },
+    {
+      "name": "小马",
+      "url": "https://szyyds.cn/tv/x.json"
+    },
+    {
+      "name": "小盒子4K",
+      "url": "http://xhztv.top/4k.json"
+    },
+    {
+      "name": "小盒子单仓",
+      "url": "http://xhztv.top/xhz"
+    },
+    {
+      "name": "嗷呜",
+      "url": "http://itv666.cc/aowu/config.webp"
+    },
+    {
+      "name": "无名",
+      "url": "https://6800.kstore.vip/fish.json"
+    },
+    {
+      "name": "小盒子多仓",
+      "url": "http://xhztv.top/dc"
+    },
+    {
+      "name": "拾光多仓",
+      "url": "http://xmbjm.fh4u.org/dc.txt"
+    },
+    {
+      "name": "挺好分享多仓",
+      "url": "http://ztha.top/TVBox/GYCK.json"
+    },
+    {
+      "name": "小盒子",
+      "url": "https://www.xhztv.pro/"
+    },
+    {
+      "name": "to4kacc 多仓（27 站·资源网直连）",
+      "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/to4kacc-config.json"
+    },
+    {
+      "name": "jinenge 内置源（自动更新）",
+      "url": "https://raw.githubusercontent.com/jinenge/tvbox/master/tvbox.json"
+    },
+    {
+      "name": "dxawi 0",
+      "url": "https://dxawi.github.io/0/0.json"
+    },
+    {
+      "name": "liu673cn 盒子",
+      "url": "https://liu673cn.github.io/box/m.json"
+    },
+    {
+      "name": "PyramidStore",
+      "url": "https://raw.githubusercontent.com/UndCover/PyramidStore/main/py.json"
+    },
+    {
+      "name": "home.jundie top98",
+      "url": "http://home.jundie.top:81/top98.json"
+    },
+    {
+      "name": "qist 大全(0821)",
+      "url": "https://qist.wyfc.qzz.io/0821.json"
+    },
+    {
+      "name": "TVAPP·有闪XC",
+      "url": "https://cdn.jsdelivr.net/gh/yoursmile66/TVBox@main/XC.json"
+    },
+    {
+      "name": "FongMi 配置",
+      "url": "https://www.252035.xyz/z/FongMi.json"
+    },
+    {
+      "name": "Meow 猫配置",
+      "url": "https://cdn.jsdelivr.net/gh/anaer/Meow@main/meow.json"
+    },
+    {
+      "name": "动漫城",
+      "url": "https://www.yingm.cc/dm/dm.json"
+    },
+    {
+      "name": "HG影视",
+      "url": "https://api.hgyx.vip/hgyx.json"
+    },
+    {
+      "name": "驸马",
+      "url": "http://fmys.top/fmys.json"
+    },
+    {
+      "name": "游魂多仓",
+      "url": "https://www.iyouhun.com/tv/dc"
+    },
+    {
+      "name": "高天流云",
+      "url": "https://raw.githubusercontent.com/gaotianliuyun/gao/master/js.json"
+    },
+    {
+      "name": "香雅情",
+      "url": "https://raw.githubusercontent.com/xyq254245/xyqonlinerule/main/XYQTVBox.json"
+    }
+  ]
+}
