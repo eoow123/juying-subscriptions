@@ -801,24 +801,8 @@ SOURCES = [
         "url": "https://gongdian.top/tv/Mursor/bililive.m3u",
         "parser": "single_live", "filter_live": True, "generated_name": "bili-live.txt",
     },
-    {
-        "id": "huya_live",
-        "name": "虎牙一起看",
-        "url": "https://live.freetv.top/huyayqk.m3u",
-        "parser": "single_live", "filter_live": True, "generated_name": "huya-yqk.txt",
-    },
-    {
-        "id": "douyu_live",
-        "name": "斗鱼一起看",
-        "url": "https://live.freetv.top/douyuyqk.m3u",
-        "parser": "single_live", "filter_live": True, "generated_name": "douyu-yqk.txt",
-    },
-    {
-        "id": "zbds_iptv4_live",
-        "name": "直播电视IPv4",
-        "url": "https://live.zbds.top/tv/iptv4.txt",
-        "parser": "single_live", "filter_live": True, "generated_name": "zbds-iptv4.txt",
-    },
+    # huya_live/douyu_live（live.freetv.top 已超时死链→0 频道）、zbds_iptv4_live（SSL 握手失败）
+    # 于 2026-08-21 移除：直播源判死后不发布空订阅，避免用户看到 0 频道的假源。
 ]
 
 

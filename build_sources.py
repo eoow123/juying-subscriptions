@@ -36,20 +36,12 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 # 搜索验证词（与 App PROBE_TERMS 一致）
 PROBE_TERMS = ["泰坦尼克号", "画江湖之天罡", "流浪地球", "你好李焕英", "长津湖", "满江红"]
 
-# 成人/违规站黑名单（名称或域名包含即剔除）
-NSFW_KEYWORDS = [
-    "麻豆", "91md", "色", "av", "AV", "番号", "湿乐园", "福利", "搜a-v", "搜av",
-    "x色", "X色", "色猫", "色仓库", "sex", "adult", "成人", "猎奇", "香蕉",
-    "老色", "精品x", "精品X", "黑料", "白嫖", "美少女", "清水", "香系", "pgxdy",
-]
-# 域名黑名单（精确 host 后缀匹配）
-NSFW_DOMAINS = [
-    "mdzyapi.com", "xxavs.com", "fhapi9.com", "semaozy.net", "91md.me",
-    "souavzyw.net", "kxgav.com", "msnii.com", "pgxdy.com", "xrbsp.com",
-    "gdlsp.com", "hsckzy888.com", "heiliaozyapi.com", "jingpinx.com",
-    "xxibaozyw.com", "xiangjiaozyw.com", "apilsbzy1.com", "lovedan.net",
-    "vnzyz.com", "xxibaozyw.com",
-]
+# 成人/违规站黑名单：**已废弃**（2026-08-21 用户明确要求：只用搜索关键词判活，
+# 探测词均为正经电影，不良站搜不到 → 自然判死，无需域名/名称黑名单；成人分类过滤挪到 App 端）。
+# 保留空列表 + is_nsfw 定义仅为兼容旧引用，实际 main() 已不调用。
+NSFW_KEYWORDS = []
+# 域名黑名单（已废弃，清空）
+NSFW_DOMAINS = []
 
 # 疑似导航/占位/垃圾站域名
 JUNK_DOMAINS = []
@@ -255,6 +247,98 @@ def collect_upstream():
     return out
 
 
+# 我们自己发布的 repo.json（dist/repo.json）：type=config 条目里嵌着很多子配置 URL，
+# 每份子配置的 sites 里往往含 type=1 采集站。用户要求（2026-08-21）：把这些"经我们筛选后
+# 保存下来的 config 里的 type=1 采集站"提取出来，作为采集站来源，再统一走搜索判活+汇总。
+REPO_JSON_URLS = [
+    "https://repo.eoow.top/dist/repo.json",
+    "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/dist/repo.json",
+]
+
+
+def _extract_type1_from_config_url(cfg_url, depth=0):
+    """下载一份 TVBox config，提取其中 type=1 采集站（api 以 http 开头）。
+    支持 multi-repo（含 urls[] 子仓库列表）一层递归展开。返回 [{name, api}]。"""
+    out = []
+    if not cfg_url or not cfg_url.startswith("http"):
+        return out
+    raw = None
+    # 中文域名/被墙 raw 一律尝试镜像回退
+    cands = [cfg_url]
+    if "raw.githubusercontent.com" in cfg_url:
+        cands.append("https://cdn.jsdelivr.net/gh/" + cfg_url.replace(
+            "https://raw.githubusercontent.com/", "").replace("/main/", "@main/").replace("/master/", "@master/"))
+        cands.append("https://gh-proxy.com/" + cfg_url)
+    for c in cands:
+        raw = http_get(c, TIMEOUT)
+        if raw and raw.strip():
+            break
+    if not raw:
+        return out
+    body = strip_jsonc(raw)
+    try:
+        root = json.loads(body)
+    except Exception:
+        return out
+    # multi-repo：{"urls":[{"url":...},...]} 一层展开（避免无限递归，depth<=1）
+    if isinstance(root, dict) and isinstance(root.get("urls"), list) and depth < 1:
+        for u in root["urls"]:
+            sub = (u.get("url") if isinstance(u, dict) else u) or ""
+            out.extend(_extract_type1_from_config_url(sub, depth + 1))
+        return out
+    for s in parse_sites_from_json(raw):
+        t = s.get("type", 1)
+        if t is not None and str(t) not in ("1",):
+            continue  # 采集站只要 type=1（AppleCMS JSON）；type=0/3/4 不是标准采集接口
+        api = (s.get("api") or "").strip()
+        if not api.startswith("http"):
+            continue
+        out.append({"name": s.get("name", ""), "api": api})
+    return out
+
+
+def collect_from_repo_configs():
+    """从我们自己发布的 repo.json 里的 config 条目，逐个下载子配置，提取 type=1 采集站。"""
+    out = []
+    repo = None
+    for u in REPO_JSON_URLS:
+        repo = http_get(u, TIMEOUT)
+        if repo and repo.strip():
+            break
+    if not repo:
+        print("[WARN] repo.json 拉取失败，跳过 config 内 type=1 提取")
+        return out
+    try:
+        obj = json.loads(strip_jsonc(repo))
+    except Exception as ex:
+        print("[WARN] repo.json 解析失败:", ex)
+        return out
+    items = obj.get("items", []) if isinstance(obj, dict) else []
+    cfg_urls = [it.get("url") for it in items
+                if isinstance(it, dict) and it.get("type") == "config" and it.get("url")]
+    print(f"[repo.json] config 条目 {len(cfg_urls)} 个，逐个提取 type=1 采集站…")
+    seen = set()
+    for cu in cfg_urls:
+        try:
+            got = _extract_type1_from_config_url(cu)
+        except Exception:
+            got = []
+        n = 0
+        for g_ in got:
+            api = g_["api"].strip()
+            h = host_of(api)
+            if not h or h in seen:
+                continue
+            seen.add(h)
+            out.append({"name": g_.get("name", ""), "api": api, "type": 1,
+                        "uptime": "", "totalResources": 0, "src": "repo_config"})
+            n += 1
+        tag = cu if len(cu) < 60 else cu[:57] + "..."
+        print(f"  [config] {tag} → {n} 个 type1")
+    print(f"[repo.json] 合计从 config 提取 {len(out)} 个 type1 采集站")
+    return out
+
+
 def normalize_term(s):
     return re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]", "", s or "").lower()
 
@@ -303,6 +387,74 @@ def probe_one(entry):
     return (api, False, "搜索无命中")
 
 
+def _snapshot_reconcile(alive, out_dir, kind="sources"):
+    """快照对照 + 差异补筛（用户要求 2026-08-21）。
+
+    语义："结果永远 >= 上次成功快照"——具体指：不因上游某次抖动/整站临时关闭而误丢
+    仍然活着的采集站。做法：
+      1. 读取上次快照 snapshot_<kind>.json（首次运行则无，直接以本次为准）。
+      2. 找出"上次有、本次不在 alive 里"的站（diff）。
+      3. 对 diff 里的每个站重新走一轮 probe_one 搜索判活；仍命中的补回 alive。
+      4. 把补齐后的 alive 覆盖写回快照，供下次对照。
+    真正死掉的站（重探仍无命中）不会补回，自然淘汰。
+    alive 元素为 dict（含 name/api）。返回补齐后的 alive。"""
+    snap_path = os.path.join(out_dir, f"snapshot_{kind}.json")
+    alive_hosts = {host_of(e["api"]) for e in alive if e.get("api")}
+
+    prev_sites = []
+    if os.path.exists(snap_path):
+        try:
+            with open(snap_path, "r", encoding="utf-8") as f:
+                prev = json.load(f)
+            prev_sites = prev.get("sites", []) if isinstance(prev, dict) else []
+        except Exception as ex:
+            print(f"[快照] 读取 {snap_path} 失败（忽略）: {ex}")
+
+    # 找差异：上次有、本次 alive 里没有的站
+    missing = []
+    for s in prev_sites:
+        api = (s.get("api") or "").strip()
+        h = host_of(api)
+        if api.startswith("http") and h and h not in alive_hosts:
+            missing.append({"name": s.get("name", ""), "api": api})
+
+    recovered = 0
+    if missing:
+        print(f"[快照] 上次 {len(prev_sites)} 站，本次活 {len(alive)} 站；差异 {len(missing)} 站→重探补筛")
+        with cf.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+            futs = {ex.submit(probe_one, m): m for m in missing}
+            for f in cf.as_completed(futs):
+                m = futs[f]
+                try:
+                    _, ok, reason = f.result()
+                except Exception:
+                    ok, reason = False, "异常"
+                if ok:
+                    alive.append({"name": m.get("name", ""), "api": m["api"], "type": 1,
+                                  "uptime": "", "totalResources": 0, "src": "snapshot"})
+                    alive_hosts.add(host_of(m["api"]))
+                    recovered += 1
+                    print(f"  [快照补回] {m.get('name')} {m['api']} ({reason})")
+                else:
+                    print(f"  [快照淘汰] {m.get('name')} {m['api']} ({reason})")
+        print(f"[快照] 补回 {recovered} 站，合计 {len(alive)} 站")
+    else:
+        print(f"[快照] 无差异或首次运行（上次 {len(prev_sites)} 站）")
+
+    # 覆盖写回本次快照（补齐后的完整活站列表）
+    try:
+        snap = {
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "count": len(alive),
+            "sites": [{"name": e.get("name", ""), "api": e["api"]} for e in alive],
+        }
+        with open(snap_path, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, indent=2)
+    except Exception as ex:
+        print(f"[快照] 写回 {snap_path} 失败: {ex}")
+    return alive
+
+
 def main():
     # 输出到脚本所在目录的 generated/ 子目录（脚本放仓库根目录：generated/sources.json）
     out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated")
@@ -311,11 +463,12 @@ def main():
     print("=== 1. 汇总采集站 ===")
     zyz = collect_ziyuanzu()
     up = collect_upstream()
-    print(f"ziyuanzu: {len(zyz)} 个，上游: {len(up)} 个")
+    repo_cfg = collect_from_repo_configs()  # 从我们发布的 repo.json 里 config 提取 type=1 采集站
+    print(f"ziyuanzu: {len(zyz)} 个，上游: {len(up)} 个，repo.json config: {len(repo_cfg)} 个")
 
     # 合并 + 去重（按 host 去重，保留 totalResources 大的）
     merged = {}
-    for e in zyz + up:
+    for e in zyz + up + repo_cfg:
         h = host_of(e["api"])
         if not h:
             continue
@@ -326,17 +479,14 @@ def main():
             merged[h] = e
     print(f"合并去重后: {len(merged)} 个")
 
-    print("=== 2. 过滤（仅 NSFW 安全红线；存活判定统一交给搜索关键词探测） ===")
-    # 用户要求（2026-08-21）：采集站过滤只用「搜索关键词」一种方式，其它判定都不要。
-    # 故删除原「0 资源判死」前置过滤（那是 ziyuanzu totalResources 字段判定，属另一种方式）。
-    # NSFW 属内容合规红线（非质量过滤），保留。
-    clean = []
-    for h, e in merged.items():
-        if is_nsfw(e.get("name", ""), e["api"]):
-            print(f"  [剔除-NSFW] {e.get('name')} {e['api']}")
-            continue
-        clean.append(e)
-    print(f"过滤后: {len(clean)} 个")
+    print("=== 2. 不做任何黑名单过滤（存活判定完全交给搜索关键词探测） ===")
+    # 用户要求（2026-08-21 复述强化）：采集站过滤「只用搜索关键词」一种方式，其它判定全部不要。
+    #   - 探测词都是正经电影（泰坦尼克号/流浪地球/长津湖等），纯不良站根本搜不到这些片 → 自然判死，
+    #     所以「搜索命中」本身就能精准把不良站筛掉，无需域名/名称黑名单。
+    #   - 成人「分类」的过滤挪到 App 端软件层（aggregateBuiltin 分类拦截）做，服务端不再拦。
+    # 故这里不再调用 is_nsfw，全部候选进入搜索探测。
+    clean = list(merged.values())
+    print(f"候选（未过滤）: {len(clean)} 个")
 
     print("=== 3. 并发探测（仅搜索关键词命中判活） ===")
     alive = []
@@ -354,6 +504,14 @@ def main():
             else:
                 print(f"  [剔除] {e.get('name')} {e['api']} ({reason})")
     print(f"存活: {len(alive)} / {len(clean)}")
+
+    # ============ 快照对照 + 差异补筛（用户要求 2026-08-21，任务4）============
+    # 目标：结果永远 >= 上一次成功快照。若本次上游整站关闭导致某活站消失，
+    #       用上次快照里的该站重新走一轮搜索判活，活的补回本次结果。
+    #   - 快照存 generated/snapshot_sources.json（{updated_at, sites:[{name,api}]}）。
+    #   - 只补"上次有、本次没有、且现在仍搜索命中"的站；死站不会被补回（保持只增不减的语义
+    #     指的是"不因上游一次抖动而丢失仍然活着的站"，真死了的自然淘汰）。
+    alive = _snapshot_reconcile(alive, out_dir, kind="sources")
 
     # 4) 生成干净订阅（TVBox sites 格式）
     sites = []
@@ -388,7 +546,7 @@ def main():
         "zyz": len(zyz),
         "upstream": len(up),
         "merged": len(merged),
-        "after_nsfw_filter": len(clean),
+        "after_nsfw_filter": len(clean),  # 已不做黑名单过滤，等于 merged（保留字段兼容邮件/状态页）
         "alive": len(alive),
         "published_sites": len(sites),
     }
