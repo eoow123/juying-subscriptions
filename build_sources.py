@@ -466,27 +466,13 @@ def main():
     repo_cfg = collect_from_repo_configs()  # 从我们发布的 repo.json 里 config 提取 type=1 采集站
     print(f"ziyuanzu: {len(zyz)} 个，上游: {len(up)} 个，repo.json config: {len(repo_cfg)} 个")
 
-    # 合并 + 去重（按 host 去重，保留 totalResources 大的）
-    merged = {}
-    for e in zyz + up + repo_cfg:
-        h = host_of(e["api"])
-        if not h:
-            continue
-        if h in merged:
-            if int(e.get("totalResources", 0) or 0) > int(merged[h].get("totalResources", 0) or 0):
-                merged[h] = e
-        else:
-            merged[h] = e
-    print(f"合并去重后: {len(merged)} 个")
-
-    print("=== 2. 不做任何黑名单过滤（存活判定完全交给搜索关键词探测） ===")
-    # 用户要求（2026-08-21 复述强化）：采集站过滤「只用搜索关键词」一种方式，其它判定全部不要。
-    #   - 探测词都是正经电影（泰坦尼克号/流浪地球/长津湖等），纯不良站根本搜不到这些片 → 自然判死，
-    #     所以「搜索命中」本身就能精准把不良站筛掉，无需域名/名称黑名单。
-    #   - 成人「分类」的过滤挪到 App 端软件层（aggregateBuiltin 分类拦截）做，服务端不再拦。
-    # 故这里不再调用 is_nsfw，全部候选进入搜索探测。
-    clean = list(merged.values())
-    print(f"候选（未过滤）: {len(clean)} 个")
+    # 合并（用户要求 2026-08-21：中间不去重，统一放到最后探测后再去重）。
+    # 原因：探测前按 host 去重会用 totalResources 规则挑选——可能把"活站"因 totalResources
+    #      小而删掉、反留"死站"（totalResources 大但实际搜不到），导致探测后活站变少。
+    #      放到探测后（剩下的全是活站）再去重，才能保证留下来的一定是活的。
+    #      域名不同的站（如 ffzy1~5.tv / api.ffzyapi.com）host 不同，去重不受影响，全部保留。
+    clean = [e for e in (zyz + up + repo_cfg) if host_of(e.get("api", ""))]
+    print(f"合并候选（未去重）: {len(clean)} 个")
 
     print("=== 3. 并发探测（仅搜索关键词命中判活） ===")
     alive = []
@@ -504,6 +490,24 @@ def main():
             else:
                 print(f"  [剔除] {e.get('name')} {e['api']} ({reason})")
     print(f"存活: {len(alive)} / {len(clean)}")
+
+    # ============ 统一去重（用户要求 2026-08-21：探测后再按 host 去重） ============
+    # 探测后剩下的全是活站，此时按 host 去重能保证留下的一定是活的（探测前去重可能误删活站）。
+    # 域名不同的站全部保留（如 ffzy1~5.tv / api.ffzyapi.com host 不同 → 都留）。
+    # 同 host 重复时保留 totalResources 更大的。
+    dedup = {}
+    for e in alive:
+        h = host_of(e.get("api", ""))
+        if not h:
+            continue
+        if h in dedup:
+            if int(e.get("totalResources", 0) or 0) > int(dedup[h].get("totalResources", 0) or 0):
+                dedup[h] = e
+        else:
+            dedup[h] = e
+    if len(dedup) != len(alive):
+        print(f"探测后按 host 去重: {len(alive)} → {len(dedup)} 个（删除 {len(alive) - len(dedup)} 个重复 host）")
+    alive = list(dedup.values())
 
     # ============ 快照对照 + 差异补筛（用户要求 2026-08-21，任务4）============
     # 目标：结果永远 >= 上一次成功快照。若本次上游整站关闭导致某活站消失，
@@ -545,8 +549,8 @@ def main():
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "zyz": len(zyz),
         "upstream": len(up),
-        "merged": len(merged),
-        "after_nsfw_filter": len(clean),  # 已不做黑名单过滤，等于 merged（保留字段兼容邮件/状态页）
+        "merged": len(clean),  # 合并候选(未去重, 用户要求探测后才去重)
+        "after_nsfw_filter": len(clean),  # 已不做黑名单过滤，等于候选数（保留字段兼容邮件/状态页）
         "alive": len(alive),
         "published_sites": len(sites),
     }
