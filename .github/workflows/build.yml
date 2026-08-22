@@ -16,6 +16,12 @@ on:
 permissions:
   contents: write   # 用于把重建后的 blob 提交回仓库
 
+# 并发互斥：连续 push 会触发多个 build 同时重建 generated/ 并互相抢 push（曾因此整条流水线红）。
+# cancel-in-progress=true 让最新一次 run 抢占执行，旧 run 直接取消（取消不触发失败告警邮件）。
+concurrency:
+  group: build-subscription-repo
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
