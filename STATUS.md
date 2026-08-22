@@ -1,11 +1,11 @@
 # 聚影TV 服务端采集状态
 
-> 最近更新（北京时间）：**2026-08-22 23:14**  
+> 最近更新（北京时间）：**2026-08-22 23:24**  
 > 本页由 GitHub Actions 每日自动重建后刷新。
 
 ```
 聚影TV 服务端采集状态报告
-生成时间（北京）：2026-08-22 23:14
+生成时间（北京）：2026-08-22 23:24
 
 【采集站汇总过滤】（build_sources.py）
   · 采集前(ziyuanzu)：73 个
@@ -18,13 +18,13 @@
 【解析端口采集】（build_parsers.py）
   · 种子站点：15 个
   · 百度发现：- 个候选站
-  · 必应国际版发现：8 个候选站
+  · 必应国际版发现：10 个候选站
   · 搜狗发现：- 个候选站
   · Google 国际版发现（服务器可达时为补充）：0 个候选站
-  · 实际抓取站点：8 个
-  · 合并去重后端口：43 个
+  · 实际抓取站点：9 个
+  · 合并去重后端口：45 个
   · 去掉死链：22 个
-  · 最终发布端口：21 个（= 去死链后）
+  · 最终发布端口：23 个（= 去死链后）
   · 各网站端口数（按数量降序）：
       - https://www.toolbb.com/svipjiexi: 17
       - https://88lin.github.io/vip/index.html: 16
@@ -32,6 +32,7 @@
       - https://www.nuliya.top/vip/: 8
       - https://www.niudh.cn/tools/vip/: 5
       - https://jiexi.6dk.cn/: 4
+      - https://www.tvff.cn/: 4
       - https://www.quanminjiexi.com/: 2
       - https://www.pouyun.com/: 1
 

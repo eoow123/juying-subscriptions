@@ -36,8 +36,8 @@ U酷资源|https://api.ukuapi88.com/api.php/provide/vod
 豪华资源|https://hhzyapi.com/api.php/provide/vod
 豪华资源站|https://haohuazy.com/api.php/provide/vod
 速播资源|https://subocaiji.com/api.php/provide/vod
-速播资源站|https://subocj.com/api.php/provide/vod
 速播资源站|https://www.suboziyuan.net/api.php/provide/vod
+速播资源站|https://subocj.com/api.php/provide/vod
 量子资源|http://cj.lziapi.com/api.php/provide/vod
 金鹰资源站|https://jyzyapi.com/provide/vod
 非凡资源|http://cj.ffzyapi.com/api.php/provide/vod
