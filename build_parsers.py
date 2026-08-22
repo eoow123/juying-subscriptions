@@ -3,7 +3,7 @@
 """
 聚影TV 解析端口采集脚本（服务端版，2026-08-22）
 =============================================
-职责：每日从「人工确认的种子站点 + 两个搜索引擎（Bing 国际版 / Google 国际版）前 3 页」
+职责：每日从「人工确认的种子站点 + 三个搜索引擎（百度 / 必应 / 搜狗）前 3 页（Google 国际版服务器可达时作为补充）」
 发现候选站点，抓取页面提取解析端口（含名称），合并去重后按 HTTP 状态码过滤死链，
 生成 generated/parsers.json（App 14 天缓存直接消费）与 generated/stats_parsers.json（汇报用）。
 
@@ -26,6 +26,7 @@ from os import path as ospath
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 BING_COOKIE = "SRCHHPGUSR=SRCHLANG=en|ensearch=1"
+GOOGLE_COOKIE = "CONSENT=YES+cb.20210328-17-p0.en+FX+700; SOCS=CAISNQgQEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjMwODI5LjA3X3AxGgJlbiACGgYIgLC_pwY"
 
 # 15 个人工确认过的 VIP 解析聚合站（用户逐一点开核对）
 SEED_SITES = [
@@ -47,10 +48,12 @@ SEED_SITES = [
 ]
 
 QUERY = "vip解析视频网站"
-# Bing 用 first 偏移，Google 用 start 偏移；均为前三页（每页约 10 条）
+# Bing 用 first 偏移，Google/Baidu 用 start/pn 偏移，Sogou 用 page；均为前三页（每页约 10 条）
 BING_PAGES = [1, 11, 21]
 GOOGLE_PAGES = [0, 10, 20]
-MAX_SITES = 80            # 抓取站点上限，防爆量
+BAIDU_PAGES = [0, 10, 20]
+SOGOU_PAGES = [1, 2, 3]
+MAX_SITES = 100           # 抓取站点上限，防爆量（三引擎 + 种子，放宽到 100）
 
 
 def fetch(url: str, timeout: int = 15, extra_cookie: str = "", retries: int = 2):
@@ -119,6 +122,41 @@ def google_candidates(html: str):
     return out
 
 
+def baidu_candidates(html: str):
+    out = []
+    # 百度 PC 结果标题锚带 mu 属性=真实 URL（跳转经 baidu.com/link，无需逐条跟随）
+    for m in re.finditer(r'\bmu\s*=\s*"([^"]+)"', html):
+        u = m.group(1)
+        if re.match(r"https?://", u, re.I) and not _is_internal(u):
+            out.append(u)
+    # 部分结果用 data-landurl
+    for m in re.finditer(r'\bdata-landurl\s*=\s*"([^"]+)"', html):
+        u = m.group(1)
+        if re.match(r"https?://", u, re.I) and not _is_internal(u):
+            out.append(u)
+    return out
+
+
+def _follow_redirect(u: str):
+    """跟随跳转取最终 URL（搜狗 /link?url= 等）。失败返回 None。"""
+    try:
+        req = urllib.request.Request(u, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            return r.geturl()
+    except Exception:
+        return None
+
+
+def sogou_candidates(html: str):
+    out = []
+    for m in re.finditer(r'href="(/link\?url=[^"]+)"', html):
+        u = m.group(1)
+        if "sogou.com" in u or "snapshot" in u:
+            continue
+        out.append("https://www.sogou.com" + u)
+    return out
+
+
 def discover_via_bing():
     found = []
     for first in BING_PAGES:
@@ -137,11 +175,48 @@ def discover_via_google():
     for start in GOOGLE_PAGES:
         try:
             url = ("https://www.google.com/search?q=" + urllib.parse.quote(QUERY) +
-                   f"&start={start}&gl=us&hl=en&num=10&filter=0")
-            html = fetch(url)
-            found.extend(google_candidates(html))
+                   f"&start={start}&gl=us&hl=en&num=20&filter=0&pws=0")
+            html = fetch(url, extra_cookie=GOOGLE_COOKIE)
+            cands = google_candidates(html)
+            found.extend(cands)
+            if not cands:
+                low = html[:3000].lower()
+                if "unusual traffic" in low or "enablejs" in low or "consent.google.com" in low:
+                    print(f"    [!] Google start={start} 疑似拦截页(consent/captcha/js)，本页无结果")
         except Exception as e:
             print(f"  [!] Google start={start} 失败: {e}")
+    return _uniq(found)
+
+
+def discover_via_baidu():
+    found = []
+    for pn in BAIDU_PAGES:
+        try:
+            url = ("https://www.baidu.com/s?wd=" + urllib.parse.quote(QUERY) +
+                   f"&pn={pn}&ie=utf-8&rn=10")
+            html = fetch(url)
+            found.extend(baidu_candidates(html))
+        except Exception as e:
+            print(f"  [!] Baidu pn={pn} 失败: {e}")
+    return _uniq(found)
+
+
+def discover_via_sogou():
+    raw = []
+    for page in SOGOU_PAGES:
+        try:
+            url = ("https://www.sogou.com/web?query=" + urllib.parse.quote(QUERY) +
+                   f"&page={page}")
+            html = fetch(url)
+            raw.extend(sogou_candidates(html))
+        except Exception as e:
+            print(f"  [!] Sogou page={page} 失败: {e}")
+    # 逐条跟随跳转取真实站点 URL（最多 30 条，防止超时拖慢）
+    found = []
+    for u in raw[:30]:
+        real = _follow_redirect(u)
+        if real and re.match(r"https?://", real) and not _is_internal(real):
+            found.append(real)
     return _uniq(found)
 
 
@@ -266,8 +341,16 @@ def main():
     google_found = discover_via_google()
     print(f"    Google 发现 {len(google_found)} 个候选")
 
+    print("[*] 阶段1c：百度（前三页）发现候选站点 ...")
+    baidu_found = discover_via_baidu()
+    print(f"    百度 发现 {len(baidu_found)} 个候选")
+
+    print("[*] 阶段1d：搜狗（前三页）发现候选站点 ...")
+    sogou_found = discover_via_sogou()
+    print(f"    搜狗 发现 {len(sogou_found)} 个候选")
+
     sites = list(SEED_SITES)
-    for s in bing_found + google_found:
+    for s in bing_found + google_found + baidu_found + sogou_found:
         if s not in sites:
             sites.append(s)
         if len(sites) >= MAX_SITES:
@@ -309,6 +392,8 @@ def main():
             "seeds": len(SEED_SITES),
             "engine_bing_found": len(bing_found),
             "engine_google_found": len(google_found),
+            "engine_baidu_found": len(baidu_found),
+            "engine_sogou_found": len(sogou_found),
             "sites_scraped": 0,
             "per_site_counts": {},
             "merged_ports": 0,
