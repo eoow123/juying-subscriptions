@@ -83,9 +83,16 @@ jobs:
           git add dist/repo.b64 dist/repo.json generated STATUS.md
           if git diff --cached --quiet; then
             echo "no changes, skip commit"
-          else
-            git commit -m "chore: rebuild subscription blob ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
-            # 并发 push 冲突自愈：先 rebase 远端再推送（否则主分支被并发提交时 push 会被拒绝）
-            git pull --rebase --autostash
-            git push
+            exit 0
           fi
+          git commit -m "chore: rebuild subscription blob ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          # 并发自愈：连续 push 会触发多个 run 同时重建 generated/（内容不同，rebase 必冲突）。
+          # 策略=弃旧保新：checkout 后 remote 若已被其他 run 推进，说明本 run 是较早那次，
+          # 其产物将被后一次 run 覆盖，直接丢弃本地 commit；只有确认 remote 未前进才 push。
+          git fetch origin
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "remote advanced by concurrent run; drop local commit, keep remote"
+            git reset --hard origin/main
+            exit 0
+          fi
+          git push || { echo "push race; keep remote version"; git reset --hard origin/main; exit 0; }
