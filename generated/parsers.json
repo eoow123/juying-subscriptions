@@ -1,7 +1,37 @@
 {
-  "updated_at": "2026-08-22 15:23:31",
-  "count": 23,
+  "updated_at": "2026-08-22 16:28:29",
+  "count": 27,
   "ports": [
+    {
+      "name": "789",
+      "url": "https://m.789bh.com/?url=",
+      "source": "__订阅__"
+    },
+    {
+      "name": "PM",
+      "url": "https://www.playm3u8.cn/jiexi.php?url=",
+      "source": "__订阅__"
+    },
+    {
+      "name": "VIP",
+      "url": "https://6.789bh.com/?url=",
+      "source": "__订阅__"
+    },
+    {
+      "name": "咸鱼",
+      "url": "https://jx.xyflv.cc/?url=",
+      "source": "__订阅__"
+    },
+    {
+      "name": "爱豆",
+      "url": "https://jx.aidouer.net/?url=",
+      "source": "__订阅__"
+    },
+    {
+      "name": "看看",
+      "url": "https://jx.m3u8.pw/?url=",
+      "source": "__订阅__"
+    },
     {
       "name": "接口16 Yparse解析",
       "url": "https://jx.yparse.com/index.php?url=",
@@ -78,24 +108,14 @@
       "source": "https://www.toolbb.com/svipjiexi"
     },
     {
+      "name": "九号解析通道【JSON】",
+      "url": "https://jx.m3u8.tv/jiexi/?url=",
+      "source": "https://www.toolbb.com/svipjiexi"
+    },
+    {
       "name": "十一号解析通道",
       "url": "https://yparse.jn1.cc/index.php?url=",
       "source": "https://www.toolbb.com/svipjiexi"
-    },
-    {
-      "name": "十九号解析通道",
-      "url": "https://jiexi.janan.net/jiexi/?url=",
-      "source": "https://www.toolbb.com/svipjiexi"
-    },
-    {
-      "name": "十五号解析通道",
-      "url": "https://ckmov.ccyjjd.com/ckmov/?url=",
-      "source": "https://www.toolbb.com/svipjiexi"
-    },
-    {
-      "name": "†小白独家线路②解析引擎系统【已更新】",
-      "url": "https://jx.555959.xyz/player/?url=",
-      "source": "https://www.tvff.cn/"
     },
     {
       "name": "七号解析通道",

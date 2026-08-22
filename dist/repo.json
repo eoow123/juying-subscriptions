@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "updated_at": "2026-08-22T15:24:25Z",
+  "updated_at": "2026-08-22T16:29:28Z",
   "count": 32,
   "items": [
     {
-      "name": "国内直播(265台 2026-8-22)",
+      "name": "国内直播(265台 2026-8-23)",
       "url": "https://cdn.jsdelivr.net/gh/eoow123/juying-subscriptions@main/generated/iptv_cn_filtered.txt",
       "type": "live"
     },
