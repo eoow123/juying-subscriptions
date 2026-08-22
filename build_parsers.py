@@ -3,15 +3,16 @@
 """
 聚影TV 解析端口采集脚本（服务端版，2026-08-22）
 =============================================
-职责：每日从「人工确认的种子站点 + Bing 国际版（经用户实测验证，主力）+ 搜狗（用户本地实测候选最多，服务器海外 IP 可能被反爬拦截时自动为 0，保留探测）前 3 页」
+职责：每日从「人工确认的种子站点 + Bing 国际版（主力，服务器稳定可用）+ cn.bing.com 国内版（补充，直接 href 提取，海外服务器可达）+ 订阅内置 parses（前期采集来源）前 3 页」
 发现候选站点，抓取页面提取解析端口（含名称），合并去重后按 HTTP 状态码过滤死链，
 生成 generated/parsers.json（App 14 天缓存直接消费）与 generated/stats_parsers.json（汇报用）。
 
 引擎说明（2026-08-22 用户实测确认）：
 - Bing 国际版（www.bing.com + ensearch=1 + cc=US）：服务器稳定可用，主力。
-- 搜狗（www.sogou.com/web）：用户本地实测 24 候选 > 百度 9，已接入；GitHub Runner 海外 IP 会触发反爬页（200 但无结果），届时 0 属正常。
-- 百度：本地第 2 页起即触发"百度安全验证"，候选最少，不接入。
+- cn.bing.com 国内版：结果=直接 href（非 u=a1 包装），本地实测 16 候选含 tvff/niudh/t-d.ltd/pouyun/nuliya 等解析站；海外服务器可达无反爬。
+- 搜狗/百度：本地实测搜狗 24 > 百度 9，但 GitHub Runner 海外 IP 全部返回反爬空壳页（搜狗标题"搜狗搜索"不带查询词、百度"安全验证"）→ 已弃用。
 - Google 国际版：服务器可达但返回 consent/captcha 拦截页，保留探测、贡献 0。
+- 订阅 parses：上游 TVBox 订阅（m.json/zy.json/资源猫）+ 自建 repo.json 内 config 的 parses 字段，作为解析端口的前期采集来源（不依赖搜索发现）。
 
 死链过滤：仅看 HTTP 状态码（2xx/3xx=活，其余=死），不解析响应内容，避免误杀好站。
 
@@ -28,6 +29,9 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from os import path as ospath
+
+# 复用 build_sources.py 的上游订阅列表与自建 repo.json 地址（提取其中的解析端口 parses）
+from build_sources import UPSTREAM_SUBS, REPO_JSON_URLS, strip_jsonc
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
@@ -54,11 +58,12 @@ SEED_SITES = [
 ]
 
 QUERY = "vip解析视频网站"
-# Bing 用 first 偏移，Google 用 start 偏移，Sogou 用 page；均为前三页（每页约 10 条）
+# Bing 用 first 偏移，Google 用 start 偏移；均为前三页（每页约 10 条）
 BING_PAGES = [1, 11, 21]
 GOOGLE_PAGES = [0, 10, 20]
-SOGOU_PAGES = [1, 2, 3]
+BING_CN_PAGES = [1, 11, 21]
 MAX_SITES = 100           # 抓取站点上限，防爆量（种子 + 双引擎）
+SUB_MAX_CHILD = 20        # 订阅多仓/子配置展开上限，防爆量
 
 
 def fetch(url: str, timeout: int = 15, extra_cookie: str = "", retries: int = 2):
@@ -127,23 +132,16 @@ def google_candidates(html: str):
     return out
 
 
-def _follow_redirect(u: str):
-    """跟随跳转取最终 URL（搜狗 /link?url= 等）。失败返回 None。"""
-    try:
-        req = urllib.request.Request(u, headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=12) as r:
-            return r.geturl()
-    except Exception:
-        return None
-
-
-def sogou_candidates(html: str):
+def cn_bing_candidates(html: str):
+    # cn.bing.com 国内版结果=直接 href（不是国际版的 u=a1 包装），过滤内部域名与静态资源
     out = []
-    for m in re.finditer(r'href="(/link\?url=[^"]+)"', html):
+    for m in re.finditer(r'href="(https?://[^"]+)"', html):
         u = m.group(1)
-        if "sogou.com" in u or "snapshot" in u:
+        if _is_internal(u):
             continue
-        out.append("https://www.sogou.com" + u)
+        if ".css" in u or ".js" in u or ".png" in u or ".jpg" in u:
+            continue
+        out.append(u)
     return out
 
 
@@ -180,30 +178,110 @@ def discover_via_google():
     return _uniq(found)
 
 
-def discover_via_sogou():
-    # 用户本地实测：搜狗 24 候选 > 百度 9（百度第 2 页即"安全验证"），故接搜狗。
-    # GitHub Runner 海外 IP 会命中搜狗反爬页（200 但 0 结果）——非算法问题，日志会打出页面标题为证。
-    raw = []
-    for page in SOGOU_PAGES:
-        try:
-            url = ("https://www.sogou.com/web?query=" + urllib.parse.quote(QUERY) +
-                   f"&page={page}")
-            html = fetch(url)
-            cands = sogou_candidates(html)
-            raw.extend(cands)
-            if not cands:
-                m = re.search(r"<title>([^<]{0,60})</title>", html, re.I)
-                t = m.group(1).strip() if m else "(无标题)"
-                print(f"    [!] Sogou page={page} 无候选，页面标题: {t}")
-        except Exception as e:
-            print(f"  [!] Sogou page={page} 失败: {e}")
-    # 逐条跟随跳转取真实站点 URL（最多 30 条，防止超时拖慢）
+def discover_via_bing_cn():
+    # cn.bing.com 国内版：结果=直接 href，海外服务器可达无反爬，与 Bing 国际版互补（偏国内站）。
+    # 本地实测 16 候选含 tvff/niudh/t-d.ltd/pouyun/nuliya 等解析站。
     found = []
-    for u in raw[:30]:
-        real = _follow_redirect(u)
-        if real and re.match(r"https?://", real) and not _is_internal(real):
-            found.append(real)
+    for first in BING_CN_PAGES:
+        try:
+            url = ("https://cn.bing.com/search?q=" + urllib.parse.quote(QUERY) +
+                   f"&first={first}")
+            html = fetch(url)
+            found.extend(cn_bing_candidates(html))
+        except Exception as e:
+            print(f"  [!] BingCN first={first} 失败: {e}")
     return _uniq(found)
+
+
+def _sub_parses_from_json(raw: str):
+    """从 TVBox 订阅 JSON 提取解析端口 [(name, url)]：顶层 parses / config.parses。"""
+    if not raw or not raw.strip():
+        return []
+    raw = strip_jsonc(raw)   # 订阅多为 JSONC（含 // 注释 / BOM），先去围栏与注释
+    if not raw.strip():
+        return []
+    try:
+        root = json.loads(raw)
+    except Exception:
+        return []
+    out = []
+    def add_list(lst):
+        for e in lst:
+            if isinstance(e, dict):
+                u = e.get("url") or e.get("api") or ""
+                if isinstance(u, str) and u.startswith("http"):
+                    u = u.strip()
+                    out.append(((str(e.get("name") or "") or u).strip(), u))
+    if isinstance(root, dict):
+        if isinstance(root.get("parses"), list):
+            add_list(root["parses"])
+        c = root.get("config")
+        if isinstance(c, dict) and isinstance(c.get("parses"), list):
+            add_list(c["parses"])
+    return out
+
+
+def collect_subscription_parses():
+    """从上游订阅 + 自建 repo.json 提取解析端口，作为「前期采集来源」（不依赖搜索发现）。
+    支持多仓结构（顶层 urls[]，如 m.json）一层展开；repo.json 的 config 条目（带 url）展开子配置。"""
+    urls = list(UPSTREAM_SUBS) + list(REPO_JSON_URLS)
+    found = []
+    for url in urls:
+        raw = None
+        for cand in (url,
+                     "https://cdn.jsdelivr.net/gh/" + url
+                     .replace("https://raw.githubusercontent.com/", "")
+                     .replace("/main/", "@main/").replace("/master/", "@master/")):
+            try:
+                raw = fetch(cand, timeout=20)
+                if raw and raw.strip():
+                    break
+            except Exception:
+                continue
+        if not raw:
+            print(f"  [!] 订阅拉取失败: {url}")
+            continue
+        ps = _sub_parses_from_json(raw)
+        found.extend(ps)
+        # 多仓展开：顶层 urls[] / config.urls[]（如 m.json）；repo.json 为 config 条目数组或含 url 的 dict
+        try:
+            root = json.loads(strip_jsonc(raw))
+            child_urls = []
+            if isinstance(root, dict):
+                if isinstance(root.get("urls"), list):
+                    child_urls += [e.get("url") for e in root["urls"] if isinstance(e, dict) and e.get("url")]
+                c = root.get("config")
+                if isinstance(c, dict):
+                    if isinstance(c.get("urls"), list):
+                        child_urls += [e.get("url") for e in c["urls"] if isinstance(e, dict) and e.get("url")]
+                    if isinstance(c.get("url"), str):
+                        child_urls.append(c["url"])
+                if root.get("type") == "config" and isinstance(root.get("url"), str):
+                    child_urls.append(root["url"])
+            elif isinstance(root, list):
+                # repo.json：config 条目数组，每条带 url 指向子配置
+                for e in root:
+                    if isinstance(e, dict) and isinstance(e.get("url"), str):
+                        child_urls.append(e["url"])
+            for cu in child_urls[:SUB_MAX_CHILD]:
+                try:
+                    craw = fetch(cu, timeout=20)
+                    cps = _sub_parses_from_json(craw)
+                    if cps:
+                        found.extend(cps)
+                        print(f"    [子配置] {cu.split('/')[-1][:40]} 提取 {len(cps)} 个解析端口")
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        print(f"  [订阅] {url.split('/')[-1]} 提取 {len(ps)} 个解析端口")
+    # 去重（按 url）
+    seen, uniq = set(), []
+    for name, u in found:
+        if u not in seen:
+            seen.add(u)
+            uniq.append((name, u))
+    return uniq
 
 
 def _uniq(items):
@@ -327,12 +405,12 @@ def main():
     google_found = discover_via_google()
     print(f"    Google 发现 {len(google_found)} 个候选")
 
-    print("[*] 阶段1c：搜狗（前三页）发现候选站点 ...")
-    sogou_found = discover_via_sogou()
-    print(f"    搜狗 发现 {len(sogou_found)} 个候选")
+    print("[*] 阶段1c：cn.bing.com 国内版（前三页）发现候选站点 ...")
+    bingcn_found = discover_via_bing_cn()
+    print(f"    BingCN 发现 {len(bingcn_found)} 个候选")
 
     sites = list(SEED_SITES)
-    for s in bing_found + google_found + sogou_found:
+    for s in bing_found + google_found + bingcn_found:
         if s not in sites:
             sites.append(s)
         if len(sites) >= MAX_SITES:
@@ -361,8 +439,13 @@ def main():
                 raw[site] = ps
                 print(f"    [抓到 {len(ps):2}] {site}")
 
-    if not raw:
-        print("    [!] 没有任何站点提取到端口")
+    # 阶段2.5：订阅内置解析端口（前期采集来源，不经搜索发现）
+    print("\n[*] 阶段2.5：从上游订阅/自建 repo.json 提取解析端口 ...")
+    sub_parses = collect_subscription_parses()
+    print(f"    订阅提取（去重后）{len(sub_parses)} 个解析端口")
+
+    if not raw and not sub_parses:
+        print("    [!] 没有任何站点/订阅提取到端口")
         # 仍写出空结果，保证 stats 文件存在、构建不中断
         out_empty = {
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -374,7 +457,8 @@ def main():
             "seeds": len(SEED_SITES),
             "engine_bing_found": len(bing_found),
             "engine_google_found": len(google_found),
-            "engine_sogou_found": len(sogou_found),
+            "engine_bingcn_found": len(bingcn_found),
+            "subscription_parses": len(sub_parses),
             "sites_scraped": 0,
             "per_site_counts": {},
             "merged_ports": 0,
@@ -389,7 +473,7 @@ def main():
         print("[+] 已写出空 parsers.json / stats_parsers.json")
         return 1
 
-    # 阶段3：合并去重（按 url 跨站去重，名字取首个非空，来源记录首个站点）
+    # 阶段3：合并去重（按 url 跨站去重，名字取首个非空，来源记录首个站点；订阅端口同样并入）
     merged = {}   # url -> {"name","source","sources":[...]}
     for site, ps in raw.items():
         for name, u in ps:
@@ -401,6 +485,15 @@ def main():
                         merged[u]["name"] = name
                 if site not in merged[u]["sources"]:
                     merged[u]["sources"].append(site)
+    for name, u in sub_parses:
+        if u not in merged:
+            merged[u] = {"name": name or u, "source": "__订阅__", "sources": ["__订阅__"]}
+        else:
+            if not merged[u]["name"] or merged[u]["name"] == u:
+                if name and name != u:
+                    merged[u]["name"] = name
+            if "__订阅__" not in merged[u]["sources"]:
+                merged[u]["sources"].append("__订阅__")
     merged_list = list(merged.items())  # [(url, meta)]
 
     print(f"\n[*] 阶段4：合并去重后 {len(merged_list)} 个端口，逐端口 HTTP 状态探活 ...")
@@ -431,6 +524,8 @@ def main():
         "seeds": len(SEED_SITES),
         "engine_bing_found": len(bing_found),
         "engine_google_found": len(google_found),
+        "engine_bingcn_found": len(bingcn_found),
+        "subscription_parses": len(sub_parses),
         "sites_scraped": len(raw),
         "per_site_counts": {site: len(ps) for site, ps in raw.items()},
         "merged_ports": len(merged_list),                         # 合并去重后（探活前）
