@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated_at": "2026-08-22 14:54:12",
-  "count": 44,
+  "updated_at": "2026-08-22 15:11:52",
+  "count": 45,
   "sites": [
     {
       "key": "zuidazy.co",
@@ -152,6 +152,15 @@
       "name": "如意资源",
       "type": 1,
       "api": "https://cj.rycjapi.com/api.php/provide/vod",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1
+    },
+    {
+      "key": "xiaomaomi.cc",
+      "name": "小猫咪资源",
+      "type": 1,
+      "api": "http://zy.xiaomaomi.cc/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
@@ -337,19 +346,19 @@
       "filterable": 1
     },
     {
-      "key": "suboziyuan.net",
+      "key": "subocj.com",
       "name": "速播资源站",
       "type": 1,
-      "api": "https://www.suboziyuan.net/api.php/provide/vod",
+      "api": "https://subocj.com/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
     },
     {
-      "key": "subocj.com",
+      "key": "suboziyuan.net",
       "name": "速播资源站",
       "type": 1,
-      "api": "https://subocj.com/api.php/provide/vod",
+      "api": "https://www.suboziyuan.net/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1

@@ -1,46 +1,50 @@
 {
-  "updated_at": "2026-08-22 14:54:12",
-  "count": 44,
+  "updated_at": "2026-08-22 15:11:52",
+  "count": 45,
   "sites": [
     {
-      "name": "暴风资源站",
-      "api": "https://bfzyapi.com/api.php/provide/vod/"
+      "name": "光速资源站",
+      "api": "https://api.guangsuapi.com/api.php/provide/vod/"
     },
     {
       "name": "极速资源站",
       "api": "https://jszyapi.com/api.php/provide/vod/"
     },
     {
-      "name": "光速资源站",
-      "api": "https://api.guangsuapi.com/api.php/provide/vod/"
+      "name": "无尽资源站",
+      "api": "https://api.wujinapi.me/api.php/provide/vod/"
     },
     {
       "name": "红牛资源站",
       "api": "http://hongniuzy2.com/api.php/provide/vod/"
     },
     {
+      "name": "速播资源站",
+      "api": "https://subocj.com/api.php/provide/vod/"
+    },
+    {
       "name": "虎牙资源站",
       "api": "https://huyazy.net/api.php/provide/vod/"
-    },
-    {
-      "name": "豪华资源站",
-      "api": "https://haohuazy.com/api.php/provide/vod/"
-    },
-    {
-      "name": "360资源站",
-      "api": "https://360zy.com/api.php/provide/vod/"
-    },
-    {
-      "name": "无尽资源站",
-      "api": "https://api.wujinapi.me/api.php/provide/vod/"
     },
     {
       "name": "金鹰资源站",
       "api": "https://jyzyapi.com/provide/vod/"
     },
     {
+      "name": "暴风资源站",
+      "api": "https://bfzyapi.com/api.php/provide/vod/"
+    },
+    {
       "name": "非凡资源站",
       "api": "https://ffzy5.tv/api.php/provide/vod/"
+    },
+    {
+      "name": "豪华资源站",
+      "api": "https://haohuazy.com/api.php/provide/vod/"
+    },
+    {
+      "name": "猫眼资源",
+      "api": "https://api.maoyanapi.top/api.php/provide/vod"
     },
     {
       "name": "速播资源站",
@@ -55,44 +59,44 @@
       "api": "http://zuidazy.me/api.php/provide/vod/"
     },
     {
-      "name": "猫眼资源",
-      "api": "https://api.maoyanapi.top/api.php/provide/vod"
+      "name": "360资源站",
+      "api": "https://360zy.com/api.php/provide/vod/"
     },
     {
       "name": "爱奇艺资源站",
       "api": "https://iqiyizyapi.com/api.php/provide/vod"
     },
     {
-      "name": "速播资源站",
-      "api": "https://subocj.com/api.php/provide/vod/"
+      "name": "百度云资源站",
+      "api": "https://api.apibdzy.com/api.php/provide/vod"
     },
     {
       "name": "艾旦资源站",
       "api": "https://lovedan.net/api.php/provide/vod"
     },
     {
-      "name": "百度云资源站",
-      "api": "https://api.apibdzy.com/api.php/provide/vod"
+      "name": "小猫咪资源",
+      "api": "http://zy.xiaomaomi.cc/api.php/provide/vod/"
     },
     {
       "name": "U酷资源",
       "api": "https://api.ukuapi88.com/api.php/provide/vod/"
     },
     {
-      "name": "淘片资源",
-      "api": "https://taopianapi.com/cjapi/mc10/vod/json.html"
-    },
-    {
       "name": "豪华资源",
       "api": "https://hhzyapi.com/api.php/provide/vod/"
     },
     {
-      "name": "最大资源",
-      "api": "https://api.zuidapi.com/api.php/provide/vod/"
+      "name": "淘片资源",
+      "api": "https://taopianapi.com/cjapi/mc10/vod/json.html"
     },
     {
       "name": "虎牙资源",
       "api": "https://www.huyaapi.com/api.php/provide/vod/"
+    },
+    {
+      "name": "最大资源",
+      "api": "https://api.zuidapi.com/api.php/provide/vod/"
     },
     {
       "name": "速播资源",
@@ -103,12 +107,12 @@
       "api": "http://cj.lziapi.com/api.php/provide/vod/"
     },
     {
-      "name": "新浪资源",
-      "api": "http://api.xinlangapi.com/xinlangapi.php/provide/vod/"
-    },
-    {
       "name": "非凡资源",
       "api": "http://cj.ffzyapi.com/api.php/provide/vod/"
+    },
+    {
+      "name": "新浪资源",
+      "api": "http://api.xinlangapi.com/xinlangapi.php/provide/vod/"
     },
     {
       "name": "无尽资源",
@@ -119,12 +123,12 @@
       "api": "https://api.yzzy-api.com/inc/api_mac10.php"
     },
     {
-      "name": "如意资源",
-      "api": "https://cj.rycjapi.com/api.php/provide/vod/"
-    },
-    {
       "name": "电影天堂",
       "api": "https://caiji.dyttzyapi.com/api.php/provide/vod/"
+    },
+    {
+      "name": "如意资源",
+      "api": "https://cj.rycjapi.com/api.php/provide/vod/"
     },
     {
       "name": "🥗┃非凡┃资源",
@@ -147,12 +151,12 @@
       "api": "http://ffzy4.tv/api.php/provide/vod/"
     },
     {
-      "name": "26-红牛",
-      "api": "https://www.hongniuzy3.com/api.php/provide/vod/"
-    },
-    {
       "name": "25-最大",
       "api": "https://zuidazy.co/api.php/provide/vod/"
+    },
+    {
+      "name": "26-红牛",
+      "api": "https://www.hongniuzy3.com/api.php/provide/vod/"
     },
     {
       "name": "30-无尽",
