@@ -68,7 +68,8 @@ def build_report():
     if p:
         lines.append(f"  · 种子站点：{p.get('seeds', '-')} 个")
         lines.append(f"  · Bing 国际版发现：{p.get('engine_bing_found', '-')} 个候选站")
-        lines.append(f"  · 搜狗发现（服务器海外IP可能被反爬拦截为0）：{p.get('engine_sogou_found', '-')} 个候选站")
+        lines.append(f"  · cn.bing 国内版发现：{p.get('engine_bingcn_found', '-')} 个候选站")
+        lines.append(f"  · 订阅内置解析端口（前期采集来源）：{p.get('subscription_parses', '-')} 个")
         lines.append(f"  · Google 国际版发现（服务器可达时为补充）：{p.get('engine_google_found', '-')} 个候选站")
         lines.append(f"  · 实际抓取站点：{p.get('sites_scraped', '-')} 个")
         lines.append(f"  · 合并去重后端口：{p.get('merged_ports', '-')} 个")
