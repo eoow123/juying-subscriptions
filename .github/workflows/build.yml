@@ -9,6 +9,7 @@ on:
     paths:
       - "build.py"
       - "build_sources.py"
+      - "build_parsers.py"
       - "notify_mail.py"
       - ".github/workflows/build.yml"
 
@@ -42,6 +43,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: python build_sources.py
+
+      - name: Generate parse ports (build_parsers)
+        # 从「种子站点 + Bing国际版 + Google国际版 前3页」发现候选站，抓取提取解析端口(含名称)，
+        # 合并去重后按 HTTP 状态码过滤死链，生成 generated/parsers.json 供 App 14天缓存直接消费。
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: python build_parsers.py
 
       - name: Build encrypted blob
         env:
