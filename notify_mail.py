@@ -44,6 +44,7 @@ def _load(name):
 def build_report():
     b = _load("stats_build.json")     # 订阅仓库总构建
     s = _load("stats_sources.json")   # 采集站汇总过滤
+    p = _load("stats_parsers.json")   # 解析端口采集
 
     bj = datetime.now(timezone.utc) + timedelta(hours=8)
     date_str = bj.strftime("%Y-%m-%d %H:%M")
@@ -62,6 +63,24 @@ def build_report():
         lines.append(f"  · 最终发布采集站：{s.get('published_sites', '-')} 个")
     else:
         lines.append("  （无 stats_sources.json，采集站脚本可能未运行）")
+    lines.append("")
+    lines.append("【解析端口采集】（build_parsers.py）")
+    if p:
+        lines.append(f"  · 种子站点：{p.get('seeds', '-')} 个")
+        lines.append(f"  · Bing 国际版发现：{p.get('engine_bing_found', '-')} 个候选站")
+        lines.append(f"  · Google 国际版发现：{p.get('engine_google_found', '-')} 个候选站")
+        lines.append(f"  · 实际抓取站点：{p.get('sites_scraped', '-')} 个")
+        lines.append(f"  · 合并去重后端口：{p.get('merged_ports', '-')} 个")
+        lines.append(f"  · 去掉死链：{p.get('dead_removed', '-')} 个")
+        lines.append(f"  · 最终发布端口：{p.get('published_ports', '-')} 个（= 去死链后）")
+        per = p.get("per_site_counts") or {}
+        if per:
+            lines.append("  · 各网站端口数（按数量降序）：")
+            for site, cnt in sorted(per.items(), key=lambda kv: -kv[1]):
+                tag = site if len(site) <= 64 else site[:61] + "..."
+                lines.append(f"      - {tag}: {cnt}")
+    else:
+        lines.append("  （无 stats_parsers.json，解析端口脚本可能未运行）")
     lines.append("")
     lines.append("【订阅仓库构建】（build.py）")
     if b:
