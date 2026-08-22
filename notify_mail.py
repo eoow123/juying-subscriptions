@@ -67,8 +67,10 @@ def build_report():
     lines.append("【解析端口采集】（build_parsers.py）")
     if p:
         lines.append(f"  · 种子站点：{p.get('seeds', '-')} 个")
-        lines.append(f"  · Bing 国际版发现：{p.get('engine_bing_found', '-')} 个候选站")
-        lines.append(f"  · Google 国际版发现：{p.get('engine_google_found', '-')} 个候选站")
+        lines.append(f"  · 百度发现：{p.get('engine_baidu_found', '-')} 个候选站")
+        lines.append(f"  · 必应国际版发现：{p.get('engine_bing_found', '-')} 个候选站")
+        lines.append(f"  · 搜狗发现：{p.get('engine_sogou_found', '-')} 个候选站")
+        lines.append(f"  · Google 国际版发现（服务器可达时为补充）：{p.get('engine_google_found', '-')} 个候选站")
         lines.append(f"  · 实际抓取站点：{p.get('sites_scraped', '-')} 个")
         lines.append(f"  · 合并去重后端口：{p.get('merged_ports', '-')} 个")
         lines.append(f"  · 去掉死链：{p.get('dead_removed', '-')} 个")
