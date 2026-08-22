@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-08-22 14:40:24",
-  "count": 20,
+  "updated_at": "2026-08-22 14:56:40",
+  "count": 21,
   "ports": [
     {
       "name": "接口16 Yparse解析",
@@ -80,6 +80,11 @@
     {
       "name": "十一号解析通道",
       "url": "https://yparse.jn1.cc/index.php?url=",
+      "source": "https://www.toolbb.com/svipjiexi"
+    },
+    {
+      "name": "十五号解析通道",
+      "url": "https://ckmov.ccyjjd.com/ckmov/?url=",
       "source": "https://www.toolbb.com/svipjiexi"
     },
     {
