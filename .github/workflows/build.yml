@@ -79,5 +79,7 @@ jobs:
             echo "no changes, skip commit"
           else
             git commit -m "chore: rebuild subscription blob ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            # 并发 push 冲突自愈：先 rebase 远端再推送（否则主分支被并发提交时 push 会被拒绝）
+            git pull --rebase --autostash
             git push
           fi
