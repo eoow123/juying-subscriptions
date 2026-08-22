@@ -89,8 +89,9 @@ jobs:
           # 并发自愈：连续 push 会触发多个 run 同时重建 generated/（内容不同，rebase 必冲突）。
           # 策略=弃旧保新：checkout 后 remote 若已被其他 run 推进，说明本 run 是较早那次，
           # 其产物将被后一次 run 覆盖，直接丢弃本地 commit；只有确认 remote 未前进才 push。
+          # 注意：判断必须用 HEAD^（commit 的父=checkout 基线），不能用 HEAD（commit 后是新提交，必非祖先）。
           git fetch origin
-          if ! git merge-base --is-ancestor HEAD origin/main; then
+          if ! git merge-base --is-ancestor HEAD^ origin/main; then
             echo "remote advanced by concurrent run; drop local commit, keep remote"
             git reset --hard origin/main
             exit 0
