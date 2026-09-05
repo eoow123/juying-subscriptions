@@ -1,0 +1,2 @@
+# juying-subscriptions
+deprecated
